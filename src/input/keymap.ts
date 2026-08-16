@@ -14,10 +14,16 @@ const isMac = typeof navigator !== "undefined" && /Mac|iP(hone|ad|od)/.test(navi
 /**
  * keydown で拾うもの。
  *
- * 文字入力・IME・ブロック内の削除は EditContext が処理するので、ここには来ない前提。
- * true を返すと preventDefault する。
+ * **keydown は EditContext と無関係にすべてのキーで飛ぶ**。文字入力も、IME 変換中も
+ * (keyCode 229 / `key === "Process"`)、ブロック内の削除も、まずここに来る。
+ * それらを EditContext に任せているだけで、来ていないわけではない。
+ *
+ * true を返すと呼び出し側が preventDefault し、**beforeinput も EditContext の処理も
+ * 止まる**。ここは握り潰す力が一番強い場所なので、扱うキーは絞ること。
  */
 export function handleKeyDown(view: EditorView, event: KeyboardEvent): boolean {
+  // 変換中のキーは IME のもの。ここで止めると変換の操作を奪ってしまう。
+  if (event.isComposing) return false;
   const mod = isMac ? event.metaKey : event.ctrlKey;
   if (mod && !event.altKey) {
     const key = event.key.toLowerCase();

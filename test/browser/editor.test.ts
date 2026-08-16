@@ -46,6 +46,14 @@ function fireBeforeInput(inputType: string): void {
   );
 }
 
+/** keydown を投げて、preventDefault されたか (= 自前で処理したか) を返す */
+function pressKey(key: string, init: KeyboardEventInit = {}): boolean {
+  const target = document.activeElement ?? view.dom;
+  const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init });
+  target.dispatchEvent(event);
+  return event.defaultPrevented;
+}
+
 function setCaret(pos: number): void {
   view.dispatch({ selection: TextSelection.create(view.state.doc, pos) });
 }
@@ -140,6 +148,19 @@ describe("EditContext との接続", () => {
     view.dispatch({ selection: TextSelection.create(view.state.doc, 3, 7) });
     fireBeforeInput("deleteContentBackward");
     expect(blockTexts()).toEqual(["abef"]);
+  });
+
+  it("変換中の keydown は IME に譲る", () => {
+    view = mount("abc", "de");
+    setCaret(4); // 1 つ目のブロックの末尾
+    // 変換中でなければブロックを跨ぐ
+    expect(pressKey("ArrowRight")).toBe(true);
+    expect(view.state.selection.head).toBe(6);
+
+    setCaret(4);
+    // 変換中は何もしない
+    expect(pressKey("ArrowRight", { isComposing: true })).toBe(false);
+    expect(view.state.selection.head).toBe(4);
   });
 
   it("フォーカスはキャレットのあるブロックに移る", () => {
