@@ -9,7 +9,7 @@ export function eqArray<T extends { eq(other: T): boolean }>(
   return a.every((value, i) => value.eq(b[i]));
 }
 
-/** パラメータ値の比較。数値・文字列だけでなく配列やオブジェクトも構造で比べる。 */
+/** 配列やオブジェクトも構造で比べる */
 export function compareDeep(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (!a || !b || typeof a !== "object" || typeof b !== "object") return false;

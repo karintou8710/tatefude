@@ -196,18 +196,55 @@ compositionend {}
 → textupdate → textformatupdate → characterboundsupdate の順。
 textformatupdate が来た時点で、変換文字列はもう doc に入っている。
 
-### 4. selectionchange は非同期
+### 4. `KeyboardEvent.isComposing` は EditContext では常に false **(重要)**
+
+変換中の keydown を IME に譲るのに `event.isComposing` は使えない。ソースで確認した経路:
+
+```
+WebInputMethodControllerImpl::SetComposition   exported/web_input_method_controller_impl.cc:55
+  → IsEditContextActive() なら EditContext->SetComposition() に直行して return
+    (InputMethodController::SetComposition まで降りない = has_composition_ が立たない)
+
+InputMethodController::HasComposition()        editing/ime/input_method_controller.cc:373
+  → has_composition_ && !composition_range_->collapsed() && ...
+
+KeyboardEvent::is_composing_                   events/keyboard_event.cc:71, 121
+  → HasCurrentComposition() = GetInputMethodController().HasComposition()
+```
+
+つまり composition は EditContext の中だけにあり、`InputMethodController` から見ると
+「変換していない」。`isComposing` はそこを見ているので false のままになる。
+
+**変換中かどうかは EditContext の `compositionstart` / `compositionend` を自分で数える**
+(`ime/manager.ts` の `composing`)。
+
+これを踏まえないと、変換を確定させた Enter がそのまま `keydown` として届いて、
+確定と同時にブロックが分割される。確定の Enter は `compositionend` の直後に来るので、
+「compositionend から一定時間内の最初の Enter は捨てる」で弾く
+(`endedCompositionRecently`)。捨てるのは 1 回だけ — 2 回目の Enter は改行の意図。
+
+### 5. selectionchange は非同期
 
 自分で DOM の選択を書いている間だけフラグを立てても、`selectionchange` は
 タスクとして後から飛ぶので守れない。実際の防御は
 「読み取った選択が model と同じなら何もしない」という等価判定のほう
 (`view/view.ts` の `onSelectionChange`)。
 
-### 5. 自動化ツールのキーイベントには注意
+### 6. 自動化ツールのキーイベントには注意
 
 CDP 経由で合成したキーは `keyCode: 0` / `code: ""` になることがあり、
 その場合 Blink が編集コマンドに落とさないので beforeinput が飛ばない。
-`event.key` だけ見る自前のハンドラ (矢印キーの境界移動) は動くのに、
-Enter や Backspace は無反応、という食い違いが起きる。
-ブラウザテストで Enter / Backspace を試すときは、beforeinput を直接
+`event.key` だけ見る自前のハンドラ (矢印キーの境界移動、Enter、Mod-b/i) は動くのに、
+beforeinput でしか拾っていないもの (Backspace / Delete の境界結合) は無反応、
+という食い違いが起きる。
+
+実際にデモで試したときのログ:
+
+| 送ったもの | 届いた keydown | 結果 |
+| --- | --- | --- |
+| `key` に "Return" | `key: ""` / `keyCode: 0` | keymap も beforeinput も反応しない |
+| `key` に "Enter" | `key: "Enter"` / `keyCode: 0` | keymap が拾って分割される |
+
+つまり `event.key` さえ正しければ keydown 経路は `keyCode: 0` でも動く。
+ブラウザテストで Backspace / Delete を試すときは、beforeinput を直接
 dispatch するか、CDP に正しい `windowsVirtualKeyCode` を渡すこと。

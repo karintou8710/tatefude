@@ -4,11 +4,8 @@ import { Mark } from "./mark";
 import { NodeShape, type Shape } from "./shape";
 
 /**
- * ドキュメントのノード。中身を持てる {@link Plot} と、持たない {@link Leaf} の 2 種類。
- * テキストは値 (文字列) を持つ Leaf。
- *
- * 長さの数え方は Plot が「開き + 中身 + 閉じ」で `contentLength + 2`、
- * Leaf が 1 (テキストだけは文字数)。
+ * 中身を持てる {@link Plot} と、持たない {@link Leaf} の 2 種類。テキストは値が文字列の Leaf。
+ * 長さは Plot が「開き + 中身 + 閉じ」で `contentLength + 2`、Leaf は 1 (テキストは文字数)。
  */
 export type Node = Plot | Leaf;
 
@@ -28,8 +25,8 @@ abstract class BaseType<Param> {
   constructor(
     readonly name: string,
     readonly flags: number,
-    // spec の型引数は消してある。ここを Param のままにするとクラスが invariant になり、
-    // Leaf.Type<string> を Node.Type<unknown> として扱えなくなる (Wordgard も同じ手当て)。
+    // Param のままだとクラスが invariant になり、Leaf.Type<string> を
+    // Node.Type<unknown> として扱えなくなるので、spec の型引数は消してある
     // biome-ignore lint/suspicious/noExplicitAny: 型の分散をそろえるため
     spec: Node.Spec<any>,
     readonly shape: NodeShape<Param>,
@@ -132,7 +129,7 @@ class LeafType<Param = unknown> extends BaseType<Param> {
   }
 }
 
-/** 中身を持たないノード。テキスト・画像・改行など。タグそのものでもある。 */
+/** テキスト・画像・改行など。タグそのものでもある */
 export class Leaf<Param = unknown> extends BaseTag<Param> {
   static readonly Type = LeafType;
 
@@ -335,7 +332,7 @@ class PlotType<Param = unknown> extends BaseType<Param> {
   }
 }
 
-/** 中身を持つノード。タグ (型 + パラメータ + マーク) と中身の並びでできている。 */
+/** タグ (型 + パラメータ + マーク) と中身の並びでできている */
 export class Plot {
   static readonly Tag = PlotTag;
   static readonly Type = PlotType;
@@ -439,14 +436,12 @@ export class Plot {
       : Plot.create(this.tag.withMarks(marks), this.content);
   }
 
-  /** 中身の index 番目を差し替える */
   replaceChildren(index: number, count: number, nodes: readonly Node[]): Plot {
     const next = this.content.slice();
     next.splice(index, count, ...nodes);
     return this.withContent(next);
   }
 
-  /** pos から始まるノードを返す */
   nodeAt(pos: number): Node | null {
     let node: Plot = this;
     let rest = pos;
@@ -518,10 +513,7 @@ export namespace Node {
     content?: readonly JSON[];
   }
 
-  /**
-   * 種類のまとまり。親子関係やマークの適用先を書くのに使う。
-   * 親を持てるので、Content に入るものは自動的に All にも入る。
-   */
+  /** 親を持てるので、Content に入るものは自動的に All にも入る */
   export class Group {
     private constructor(readonly parent: Group | undefined) {}
 
@@ -539,10 +531,10 @@ export namespace Node {
     static readonly Content = Group.define(Group.Block);
   }
 
-  /** 種類の指定。単体・グループ・配列 (和) ・`{and: [...]}` (積)。 */
+  /** 単体・グループ・配列 (和)・`{and: [...]}` (積) */
   export type Query = Node.Tag | Node.Type | Group | readonly Query[] | { and: readonly Query[] };
 
-  /** 意味づけ。コマンドが型を特定するのに使う。 */
+  /** コマンドが型を特定するのに使う */
   export class Role {
     private constructor() {}
     static define(): Role {
@@ -593,7 +585,7 @@ export function joinText(content: readonly Node[]): readonly Node[] {
   return result.length ? result : none;
 }
 
-/** pos がどの子の中にあるか。境界にあるときは後ろ側の index を返す。 */
+/** 境界にあるときは後ろ側の index を返す */
 export function findIndex(
   content: readonly Node[],
   pos: number,
@@ -612,7 +604,6 @@ export function findIndex(
   }
 }
 
-/** 中身の [from, to) を切り出す */
 export function cutContent(content: readonly Node[], from: number, to?: number): readonly Node[] {
   const size = contentLength(content);
   const end = to ?? size;

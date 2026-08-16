@@ -1,16 +1,9 @@
 import type { EditorState } from "./state";
 import type { Transaction } from "./transaction";
 
-/**
- * 構成の仕組み。Wordgard (と CodeMirror) と同じく、
- * **facet** = 「複数の入力を 1 つの出力に畳む定義」、
- * **extension** = 「facet に値を供給するもの / フィールドを足すもの」の組で構成する。
- *
- * エディタの機能はすべて `config: [ ... ]` に extension を並べて足す。
- *
- * 本家との違い: 値の計算は遅延 + 依存追跡ではなく、フィールドは先に作り、
- * facet は必要になったときに計算してメモ化するだけ。雛形にはこれで足りる。
- */
+// facet = 複数の入力を 1 つの出力に畳む定義、extension = facet に値を供給するもの。
+// CodeMirror と違い遅延 + 依存追跡はせず、フィールドは先に作り、facet は必要に
+// なったときに計算してメモ化するだけ。雛形にはこれで足りる。
 
 let nextID = 0;
 
@@ -31,7 +24,7 @@ export class FacetProvider<Input> {
 }
 
 export interface FacetSpec<Input, Output> {
-  /** 入力の並びを出力に畳む。省略すると入力の配列そのもの。 */
+  /** 省略すると入力の配列そのもの */
   combine?: (values: readonly Input[]) => Output;
   compare?: (a: Output, b: Output) => boolean;
   /** 状態に依存しない値だけを受け付ける (スキーマなど) */
@@ -62,24 +55,20 @@ export class Facet<Input, Output = readonly Input[]> {
     );
   }
 
-  /** 固定値をこの facet に供給する extension */
   of(value: Input): Extension {
     return new FacetProvider<Input>(this, () => [value], true);
   }
 
-  /** 状態から値を計算して供給する extension */
   compute(get: (state: EditorState) => Input): Extension {
     if (this.isStatic) throw new Error("static な facet は compute できない");
     return new FacetProvider<Input>(this, (state) => [get(state)], false);
   }
 
-  /** 状態から 0 個以上の値を供給する extension */
   computeN(get: (state: EditorState) => readonly Input[]): Extension {
     if (this.isStatic) throw new Error("static な facet は compute できない");
     return new FacetProvider<Input>(this, get, false);
   }
 
-  /** フィールドの値をそのままこの facet に流す */
   from<Value extends Input>(field: Field<Value>): Extension;
   from<Value>(field: Field<Value>, get: (value: Value) => Input): Extension;
   from<Value>(field: Field<Value>, get?: (value: Value) => Input): Extension {
@@ -92,11 +81,9 @@ export interface FieldSpec<Value> {
   create(state: EditorState): Value;
   update(value: Value, tr: Transaction): Value;
   compare?(a: Value, b: Value): boolean;
-  /** このフィールドを元に facet へ値を供給する extension を返す */
   provide?(field: Field<Value>): Extension;
 }
 
-/** 状態に自分の値を持たせ、トランザクションごとに更新する */
 export class Field<Value> {
   readonly id = nextID++;
   readonly provides: Extension | undefined;
@@ -163,7 +150,7 @@ export class Configuration {
     return this.providers.get(facet.id) ?? [];
   }
 
-  /** 状態を作る前に読める facet (static なものだけ) */
+  /** 状態を作る前に読めるのは static な facet だけ */
   // biome-ignore lint/suspicious/noExplicitAny: 入力型は供給元が持っている
   staticFacet<Output>(facet: Facet<any, Output>): Output {
     const providers = this.providersFor(facet);

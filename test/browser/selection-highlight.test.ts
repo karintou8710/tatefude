@@ -71,8 +71,8 @@ describe("CSS Custom Highlight による選択の描画", () => {
     expect(ranges.map((r) => r.toString())).toEqual(["bc", "def", "g"]);
     // それぞれの Range が対応するブロックの中に閉じている
     ranges.forEach((range, index) => {
-      expect(view.blocks[index].dom.contains(range.startContainer)).toBe(true);
-      expect(view.blocks[index].dom.contains(range.endContainer)).toBe(true);
+      expect(view.textblocks[index].dom.contains(range.startContainer)).toBe(true);
+      expect(view.textblocks[index].dom.contains(range.endContainer)).toBe(true);
     });
   });
 

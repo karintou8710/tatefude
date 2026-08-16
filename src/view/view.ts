@@ -1,10 +1,11 @@
+import { Pos } from "../doc";
 import { EditContextManager } from "../ime/manager";
 import { handleBeforeInput } from "../input/beforeinput";
 import { handleKeyDown } from "../input/keymap";
 import { PointerSelection } from "../input/pointer";
 import type { EditorState } from "../state/state";
 import { Transaction, type TransactionSpec } from "../state/transaction";
-import { BlockView } from "./block-view";
+import { type BlockNodeView, syncBlockChildren, type TextblockView } from "./block-view";
 import type { InlineDecoration } from "./decoration";
 import { readDOMSelection, writeDOMSelection } from "./dom-selection";
 import {
@@ -22,18 +23,21 @@ export interface EditorViewProps {
 export class EditorView {
   readonly dom: HTMLElement;
   state: EditorState;
-  readonly blocks: BlockView[] = [];
-  readonly ime: EditContextManager;
-  /** 自分で DOM の選択を書いている間は selectionchange を無視する */
-  updatingSelection = false;
+  /** doc 直下のブロック。中身はネストしうるので木になる */
+  readonly children: BlockNodeView[] = [];
   /**
-   * ブロックを跨ぐ選択を自分で進めている間は、DOM の選択との同期を止める。
-   * ブラウザ側の選択は編集ホストの境界で丸まってしまうため。
+   * 文書順に並べたテキストブロック。render のたびに作り直す。
+   * 編集の単位はこちらで、木を見る必要があるのは render と構造編集だけ。
    */
+  textblocks: readonly TextblockView[] = [];
+  readonly ime: EditContextManager;
+  /** ブラウザの選択は編集ホストの境界で丸まるので、跨ぐ選択を進める間は同期を止める */
   suppressSelectionSync = false;
   private readonly highlighter = new SelectionHighlighter();
   private readonly pointer: PointerSelection;
   private destroyed = false;
+  private byFrom = new Map<number, TextblockView>();
+  private byDOM = new Map<HTMLElement, TextblockView>();
 
   constructor(
     place: HTMLElement,
@@ -76,29 +80,15 @@ export class EditorView {
 
   /** doc → DOM → 選択 → EditContext の順に押し出す */
   private render(): void {
-    const decorations = this.decorations;
-    const doc = this.state.doc;
-    let pos = 0;
-    for (let i = 0; i < doc.childCount; i++) {
-      const node = doc.child(i);
-      // 雛形の doc 直下はブロックだけ
-      if (!node.isPlot) continue;
-      const contentFrom = pos + 1;
-      const contentTo = contentFrom + node.contentLength;
-      const blockDecos = decorations.filter((d) => d.from < contentTo && d.to > contentFrom);
-      const existing = this.blocks[i];
-      if (existing) {
-        existing.update(node, pos, blockDecos);
-      } else {
-        const block = new BlockView(node, pos, blockDecos);
-        this.blocks[i] = block;
-        this.dom.appendChild(block.dom);
-      }
-      pos += node.length;
-    }
-    while (this.blocks.length > doc.childCount) {
-      this.blocks.pop()?.destroy();
-    }
+    const textblocks: TextblockView[] = [];
+    syncBlockChildren(this.dom, this.state.doc, 0, this.children, {
+      decorations: this.decorations,
+      textblocks,
+      createEditContext: (block) => this.ime.createFor(block),
+    });
+    this.textblocks = textblocks;
+    this.byFrom = new Map(textblocks.map((block) => [block.from, block]));
+    this.byDOM = new Map(textblocks.map((block) => [block.dom, block]));
 
     writeDOMSelection(this);
     // 選択の見た目はネイティブではなく Highlight が描く
@@ -106,25 +96,34 @@ export class EditorView {
     this.ime.syncFromState(this.state);
   }
 
-  blockAt(pos: number): BlockView | null {
-    return this.blocks.find((block) => block.contains(pos)) ?? null;
+  /** 位置を含む一番内側のテキストブロック。木は doc 側に任せて引く */
+  textblockAt(pos: number): TextblockView | null {
+    const doc = this.state.doc;
+    if (pos < 0 || pos > doc.contentLength) return null;
+    const $pos = Pos.resolve(doc, pos);
+    const depth = $pos.textblockDepth();
+    // doc 自身がテキストブロックになることはないので、depth 0 は「どこにも入っていない」
+    if (depth == null || depth === 0) return null;
+    return this.byFrom.get($pos.before(depth)) ?? null;
   }
 
-  blockIndexAt(pos: number): number {
-    return this.blocks.findIndex((block) => block.contains(pos));
+  /** 文書順での番号。跨ぎ移動が「前後のテキストブロック」だけで書けるようにする */
+  textblockIndexAt(pos: number): number {
+    const block = this.textblockAt(pos);
+    return block ? this.textblocks.indexOf(block) : -1;
   }
 
-  blockForDOM(node: globalThis.Node | null): BlockView | null {
+  textblockForDOM(node: globalThis.Node | null): TextblockView | null {
     if (!node) return null;
     const element =
       node.nodeType === 1 ? (node as Element) : (node.parentElement as Element | null);
-    const blockDOM = element?.closest("[data-ecw-block]") ?? null;
+    const blockDOM = element?.closest("[data-ecw-textblock]") ?? null;
     if (!blockDOM) return null;
-    return this.blocks.find((block) => block.dom === blockDOM) ?? null;
+    return this.byDOM.get(blockDOM as HTMLElement) ?? null;
   }
 
   focus(): void {
-    const block = this.blockAt(this.state.selection.head) ?? this.blocks[0];
+    const block = this.textblockAt(this.state.selection.head) ?? this.textblocks[0];
     block?.dom.focus({ preventScroll: true });
     writeDOMSelection(this);
   }
@@ -154,7 +153,7 @@ export class EditorView {
   };
 
   private onSelectionChange = (): void => {
-    if (this.updatingSelection || this.suppressSelectionSync || this.destroyed) return;
+    if (this.suppressSelectionSync || this.destroyed) return;
     if (!this.dom.contains(document.activeElement)) return;
     const selection = readDOMSelection(this);
     if (!selection || selection.eq(this.state.selection)) return;
@@ -170,9 +169,12 @@ export class EditorView {
     document.removeEventListener("selectionchange", this.onSelectionChange);
     this.pointer.destroy();
     this.highlighter.destroy();
-    this.ime.destroy();
-    for (const block of this.blocks) block.destroy();
-    this.blocks.length = 0;
+    // EditContext は TextblockView が持っているので、木を畳めば一緒に外れる
+    for (const child of this.children) child.destroy();
+    this.children.length = 0;
+    this.textblocks = [];
+    this.byFrom.clear();
+    this.byDOM.clear();
     this.dom.remove();
   }
 }

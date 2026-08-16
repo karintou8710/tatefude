@@ -2,22 +2,15 @@ import type { Plot } from "./node";
 import { buildPlot, Slice, sliceDoc, type Token } from "./slice";
 
 /**
- * ドキュメントの変更を 1 個の値として表したもの。
- *
- * Wordgard / CodeMirror と同じ「区間の並び」で持つ。ステップの列と違って
- * **合成・逆・位置の写像がすべて ChangeSet のまま閉じている**のが利点。
- *
- * `sections` は 2 個ずつの組:
- * - 1 つ目 = もとの doc でのその区間の長さ
- * - 2 つ目 = `-1` なら「そのまま」、0 以上なら「その長さに置き換え」
- *
- * 置き換える内容は {@link Slice} (トークンの並び) で `inserted` に入る。
+ * 変更を区間の並びで持つ。ステップの列と違い、合成・逆・位置の写像がすべて ChangeSet の
+ * まま閉じる。`sections` は 2 個ずつの組で、1 つ目 = もとの長さ、2 つ目 = `-1` ならそのまま、
+ * 0 以上ならその長さに置き換え。置き換える内容は `inserted` に入る。
  */
 export interface ChangeSpec {
   from: number;
   to?: number;
   insert?: Slice | readonly Token[];
-  /** 木として成立する形に直してから使う (fitChange を通す) */
+  /** 木として成立する形に直してから使う */
   fit?: boolean;
 }
 
@@ -41,12 +34,10 @@ export class ChangeSet {
     return new ChangeSet(sections, inserted);
   }
 
-  /** 何も変えない変更 */
   static empty(length: number): ChangeSet {
     return length ? new ChangeSet([length, -1], [null]) : new ChangeSet([], []);
   }
 
-  /** 置換の指定から組み立てる */
   static of(specs: ChangeSpec | readonly ChangeSpec[], docLength: number): ChangeSet {
     const list = (Array.isArray(specs) ? specs : [specs]) as readonly ChangeSpec[];
     const sorted = [...list]
@@ -103,7 +94,6 @@ export class ChangeSet {
     );
   }
 
-  /** 変更を適用した doc を返す */
   apply(doc: Plot): Plot {
     if (this.length !== doc.contentLength) {
       throw new RangeError(`変更の長さ (${this.length}) が doc (${doc.contentLength}) と合わない`);
@@ -121,7 +111,6 @@ export class ChangeSet {
     return buildPlot(doc.tag, tokens);
   }
 
-  /** 位置を変更後の座標に写す */
   mapPos(pos: number, assoc: Assoc = 1): number {
     let posA = 0;
     let posB = 0;
@@ -192,7 +181,7 @@ export class ChangeSet {
     return touched;
   }
 
-  /** 変更前の doc を使って、逆向きの変更を作る */
+  /** 逆向きの変更を作るには、消えた内容が要るので変更前の doc を渡す */
   invert(doc: Plot): ChangeSet {
     const sections: number[] = [];
     const inserted: (Slice | null)[] = [];
@@ -213,12 +202,7 @@ export class ChangeSet {
     return new ChangeSet(sections, inserted);
   }
 
-  /**
-   * この変更のあとに other を適用したのと同じ 1 個の変更を作る。
-   * `other` はこの変更を適用した doc の上の変更であること。
-   *
-   * この変更の出力を「区間の待ち行列」にして、other をその上に流す。
-   */
+  /** `other` はこの変更を適用した doc の上の変更であること */
   compose(other: ChangeSet): ChangeSet {
     if (this.newLength !== other.length) {
       throw new RangeError(`合成できない (${this.newLength} と ${other.length})`);
@@ -317,7 +301,7 @@ type QueueItem =
   | { kind: "keep"; length: number }
   | { kind: "insert"; slice: Slice; aDeleted: number };
 
-/** 変更の「出力側」を区間の待ち行列にする */
+/** 変更の出力側を区間の待ち行列にする */
 function outputQueue(set: ChangeSet): QueueItem[] {
   const queue: QueueItem[] = [];
   for (let i = 0; i < set.sections.length; i += 2) {
@@ -332,7 +316,7 @@ function outputQueue(set: ChangeSet): QueueItem[] {
   return queue;
 }
 
-/** 区間を足しながら ChangeSet を組み立てる。隣り合う同種の区間はまとめる。 */
+/** 隣り合う同種の区間はまとめる */
 export class ChangeBuilder {
   private readonly sections: number[] = [];
   private readonly inserted: (Slice | null)[] = [];
@@ -361,7 +345,6 @@ export class ChangeBuilder {
     }
   }
 
-  /** 削除と挿入をまとめて足す */
   emit(deleted: number, insert: Slice): void {
     this.replace(deleted, insert);
   }

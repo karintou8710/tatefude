@@ -78,11 +78,22 @@ EditContext が今持っている文字列なので、EditContext 自身が書�
 | ブロック内の Backspace / Delete / 単語削除 | 同上 (grapheme・単語境界は EditContext 任せ) |
 | ブロック先頭の Backspace / 末尾の Delete | `beforeinput` を preventDefault して自前で結合 |
 | ブロックを跨ぐ選択の削除 | 同上 |
-| Enter | `beforeinput` (insertParagraph) → 分割 + 新ブロックへ focus |
+| Enter | `keydown` → 分割 + 新ブロックへ focus |
+| Mod-b / Mod-i | `keydown` |
 | ブロック内のキャレット移動・選択 | ネイティブ (要素が editable なので) |
 | ブロック境界を跨ぐ矢印キー移動 | `keydown` で端を判定して隣のブロックへ focus |
 | ブロックを跨ぐドラッグ選択 | `mousedown` + `mousemove` を自前で追う |
 | 選択の描画 | ネイティブの選択は透明にして CSS Custom Highlight で塗る |
+
+`keydown` (`input/keymap.ts`) が主で、`beforeinput` (`input/beforeinput.ts`) が受け皿。
+編集の意図はまず keydown で捕まえて preventDefault し、そこで拾えなかったものを
+beforeinput が受ける。Backspace / Delete だけは keydown で見ない — 握り潰すと
+ブロックの内側の削除まで EditContext から奪ってしまうので、境界かどうかを判定できる
+beforeinput の側で見る。
+
+同じ意図を両方に書くことはしない。keymap に割り当てがあるものは keymap だけ、
+beforeinput にあるのは「キーの割り当てが OS ごとに違うので意図でしか受けられないもの」
+(macOS の Ctrl-H / Ctrl-D / Ctrl-O など) だけ。
 
 矢印キーの軸は書字方向で入れ替わる (縦書きでは上下が行の中、左右が行の跨ぎ)。
 `writing-mode` を読んで論理方向に直してから判定している。

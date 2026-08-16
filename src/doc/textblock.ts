@@ -1,6 +1,6 @@
 import type { Node, Plot } from "./node";
 
-/** OBJECT REPLACEMENT CHARACTER。インラインの atom 1 個を 1 文字として表す。 */
+/** OBJECT REPLACEMENT CHARACTER。atom 1 個を 1 文字として数えるための代役 */
 export const ATOM_CHAR = "￼";
 
 interface Segment {
@@ -12,10 +12,8 @@ interface Segment {
 }
 
 /**
- * テキストブロックを「1 本のフラットな文字列」として見せる対応表。
- * EditContext のバッファに載せるのはこの text で、オフセットは UTF-16 code unit。
- *
- * Wordgard の `TextblockMap` に当たるもの (向こうは bidi span も持つ)。
+ * テキストブロックを 1 本のフラットな文字列として見せる対応表。EditContext のバッファに
+ * 載せるのはこの text で、オフセットは UTF-16 code unit。
  */
 export class TextblockMap {
   constructor(

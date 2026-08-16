@@ -4,7 +4,7 @@ import { findIndex, type Leaf, type Node, type Plot } from "./node";
 type PathEntry = Plot | number;
 
 /**
- * 解決済みの位置。数値の位置に「どの plot の何番目か」という文脈を付けたもの。
+ * 数値の位置に「どの plot の何番目か」という文脈を付けたもの。
  * path は [plot, index, その plot の開始位置] の 3 つ組の並び。
  */
 export class Pos {

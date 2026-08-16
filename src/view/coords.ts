@@ -1,9 +1,6 @@
 // このファイルの Node は DOM の Node。ドキュメントモデルのノードは扱わない。
 
-/**
- * DOM の位置をブロック内のフラットオフセットに写す。
- * Range.toString().length を使うので、テキストノードの持ち方に依存しない。
- */
+/** Range.toString().length で測るので、テキストノードの分かれ方に依存しない */
 export function domPointToBlockOffset(blockDOM: HTMLElement, node: Node, offset: number): number {
   if (!blockDOM.contains(node) && node !== blockDOM) return 0;
   const range = document.createRange();
@@ -21,7 +18,7 @@ interface CaretPositionLike {
   offset: number;
 }
 
-/** 画面座標から DOM の位置を得る。ブラウザによって API 名が違うので吸収する。 */
+/** ブラウザによって API 名が違うので吸収する */
 export function caretPointFromCoords(x: number, y: number): { node: Node; offset: number } | null {
   const doc = document as Document & {
     caretPositionFromPoint?(x: number, y: number): CaretPositionLike | null;
@@ -34,7 +31,6 @@ export function caretPointFromCoords(x: number, y: number): { node: Node; offset
   return null;
 }
 
-/** ブロック内のフラットオフセットを DOM の位置に戻す */
 export function blockOffsetToDOMPoint(
   blockDOM: HTMLElement,
   offset: number,
@@ -61,7 +57,7 @@ export function blockOffsetRange(blockDOM: HTMLElement, from: number, to: number
   return range;
 }
 
-/** キャレット位置の矩形。空ブロックではブロック自身の矩形で代用する。 */
+/** 空ブロックではブロック自身の矩形で代用する */
 export function caretRectAt(blockDOM: HTMLElement, offset: number): DOMRect {
   const range = blockOffsetRange(blockDOM, offset, offset);
   const rects = range.getClientRects();
@@ -84,7 +80,7 @@ export function caretRectAt(blockDOM: HTMLElement, offset: number): DOMRect {
   return new DOMRect(box.left, box.top, 0, box.height);
 }
 
-/** [from, to) の 1 文字ずつの矩形。EditContext の characterBounds に渡す。 */
+/** [from, to) の 1 文字ずつ。EditContext の characterBounds に渡す */
 export function characterRects(blockDOM: HTMLElement, from: number, to: number): DOMRect[] {
   const rects: DOMRect[] = [];
   for (let offset = from; offset < to; offset++) {
@@ -116,17 +112,15 @@ export function writingModeOf(dom: HTMLElement): WritingModeInfo {
 }
 
 /**
- * キャレットが視覚的な最初 / 最後の行にいるか (行を跨ぐ移動の判定用)。
- *
- * `direction` は論理方向 (-1 = 前の行へ、1 = 次の行へ)。縦書きでは行が横に積まれ、
- * vertical-rl では「次」が画面の左になるので、物理軸と向きを書字方向から決める。
+ * キャレットが視覚的な最初 / 最後の行にいるか。`direction` は論理方向 (-1 = 前の行へ)。
+ * 縦書きでは行が横に積まれ vertical-rl では「次」が左なので、物理軸は書字方向から決める。
  */
 export function isOnEdgeLine(blockDOM: HTMLElement, offset: number, direction: -1 | 1): boolean {
   const { vertical, blockForwardIsPositive } = writingModeOf(blockDOM);
   const caret = caretRectAt(blockDOM, offset);
   const box = blockDOM.getBoundingClientRect();
 
-  // ブロック方向 = インライン方向と直交する軸。キャレットのその軸方向の太さが行の高さ。
+  // ブロック方向 = インライン方向と直交する軸。キャレットのその軸の太さが行の高さ
   const caretStart = vertical ? caret.left : caret.top;
   const caretEnd = vertical ? caret.right : caret.bottom;
   const boxStart = vertical ? box.left : box.top;

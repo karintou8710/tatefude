@@ -2,14 +2,13 @@ import { type Selection, TextSelection } from "../state/selection";
 import { blockOffsetToDOMPoint, domPointToBlockOffset } from "./coords";
 import type { EditorView } from "./view";
 
-/** model の選択を DOM に書き込む。キャレットの描画はブラウザに任せる。 */
+/** キャレットの描画はブラウザに任せる */
 export function writeDOMSelection(view: EditorView): void {
-  // ブロックを跨ぐ選択を進めている間は、ブラウザ側の選択に触らない
-  // (どうせ編集ホストの境界で丸められるし、ドラッグ中に書き戻すと競合する)
+  // 跨ぐ選択の最中は触らない。どうせ境界で丸められるし、書き戻すとドラッグと競合する
   if (view.suppressSelectionSync) return;
   const selection = view.state.selection;
-  const anchorBlock = view.blockAt(selection.anchor);
-  const headBlock = view.blockAt(selection.head);
+  const anchorBlock = view.textblockAt(selection.anchor);
+  const headBlock = view.textblockAt(selection.head);
   if (!anchorBlock || !headBlock) return;
   const domSelection = document.getSelection();
   if (!domSelection) return;
@@ -23,7 +22,7 @@ export function writeDOMSelection(view: EditorView): void {
     headBlock.text.posToOffset(selection.head),
   );
 
-  // キャレット側のブロックにフォーカスを移す = アクティブな EditContext が決まる
+  // フォーカスの移動でアクティブな EditContext が決まる
   if (document.activeElement !== headBlock.dom) {
     headBlock.dom.focus({ preventScroll: true });
   }
@@ -37,25 +36,21 @@ export function writeDOMSelection(view: EditorView): void {
     return;
   }
 
-  view.updatingSelection = true;
-  try {
-    domSelection.setBaseAndExtent(
-      anchorPoint.node,
-      anchorPoint.offset,
-      headPoint.node,
-      headPoint.offset,
-    );
-  } finally {
-    view.updatingSelection = false;
-  }
+  // ここで発火する selectionchange は非同期に届くが、読み戻すと現在の model と
+  // 一致するので EditorView 側で no-op になる
+  domSelection.setBaseAndExtent(
+    anchorPoint.node,
+    anchorPoint.offset,
+    headPoint.node,
+    headPoint.offset,
+  );
 }
 
-/** DOM の選択を model の選択に読み替える。読めなければ null。 */
 export function readDOMSelection(view: EditorView): Selection | null {
   const domSelection = document.getSelection();
   if (!domSelection?.anchorNode || !domSelection.focusNode) return null;
-  const anchorBlock = view.blockForDOM(domSelection.anchorNode);
-  const headBlock = view.blockForDOM(domSelection.focusNode);
+  const anchorBlock = view.textblockForDOM(domSelection.anchorNode);
+  const headBlock = view.textblockForDOM(domSelection.focusNode);
   if (!anchorBlock || !headBlock) return null;
 
   const anchor = anchorBlock.text.offsetToPos(

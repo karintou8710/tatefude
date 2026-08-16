@@ -38,7 +38,7 @@ function pressKey(key: string): boolean {
 }
 
 function blockIndexOfCaret(): number {
-  return view.blockIndexAt(view.state.selection.head);
+  return view.textblockIndexAt(view.state.selection.head);
 }
 
 beforeEach(() => {

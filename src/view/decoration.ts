@@ -1,6 +1,6 @@
 import type { ChangeSet } from "../doc";
 
-/** doc 位置の範囲に見た目だけを足す。IME 変換中の下線がこれで描かれる。 */
+/** doc は変えずに見た目だけを足す。IME 変換中の下線がこれ */
 export interface InlineDecoration {
   from: number;
   to: number;

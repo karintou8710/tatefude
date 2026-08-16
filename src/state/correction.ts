@@ -4,30 +4,20 @@ import type { EditorState } from "./state";
 import { Transaction } from "./transaction";
 
 /**
- * ドキュメントの不変条件を守るための仕組み。
- *
- * 「この種類のノードが変わったら呼ばれて、条件を確かめ、必要ならさらに変更を足す」
- * という形で書く。トランザクションの追記 ({@link Transaction.extender}) の上に乗っているので、
- * 効果はそのトランザクションの一部として適用される。
- *
- * 例: ルビの親文字と読みの数を合わせる、表の行の長さを揃える、といった
- * スキーマだけでは表せない条件。
+ * スキーマだけでは表せない不変条件 (ルビの親文字と読みの数を合わせる、表の行を揃える等)。
+ * {@link Transaction.extender} の上に乗るので、同じトランザクションの一部として適用される。
  */
 export interface CorrectionContext {
-  /** 変更に触れた、種類の合うノード */
   node: Plot;
-  /** そのノードの (変更後の doc における) 開始位置 */
+  /** 変更後の doc における開始位置 */
   pos: number;
-  /** 組み立て中の更新 */
   tr: Transaction;
-  /** 変更前の状態 */
   oldState: EditorState;
 }
 
 export interface CorrectionSpec {
-  /** 見張るノードの種類 */
   node: Node.Query;
-  /** 足したい変更を返す。何も要らなければ null。位置は変更後の doc の座標。 */
+  /** 要らなければ null。位置は変更後の doc の座標 */
   correct(context: CorrectionContext): ChangeSpec | readonly ChangeSpec[] | null;
 }
 

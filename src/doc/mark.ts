@@ -41,7 +41,7 @@ class MarkType<Value = unknown> {
     return Mark.create(this, value);
   }
 
-  /** rank が小さいほど内側。同 rank は名前で決める。 */
+  /** rank が小さいほど内側。同 rank は名前で決める */
   compareRank(other: MarkType): number {
     return this.rank - other.rank || (other.name < this.name ? 1 : -1);
   }
@@ -61,8 +61,8 @@ class MarkType<Value = unknown> {
 }
 
 /**
- * マークは型 + 値。値を持たないマーク (強調など) は型ごとに 1 つの実体を使い回す。
- * マークの集合は rank の昇順に並ぶので、同じ組み合わせなら常に同じ並びになる。
+ * 値を持たないマーク (強調など) は型ごとに 1 つの実体を使い回す。集合は rank の昇順なので、
+ * 同じ組み合わせなら常に同じ並びになる。
  */
 export class Mark<Value = unknown> {
   static readonly none: Mark.Set = none;
@@ -90,7 +90,7 @@ export class Mark<Value = unknown> {
     return this.type === other.type && compareDeep(this.value, other.value);
   }
 
-  /** rank の順を保ったまま足す。同じ型のマークは置き換える。 */
+  /** 同じ型のマークは置き換える */
   addToSet(set: Mark.Set): Mark.Set {
     let placed = false;
     const result: Mark[] = [];
@@ -128,7 +128,6 @@ export class Mark<Value = unknown> {
     return eqArray(a, b);
   }
 
-  /** 値を持たないマークを 1 つ定義する */
   static define(name: string, spec: Mark.Spec<null>): Mark<null> {
     const type = MarkType.define<null>(name, spec, true);
     if (!type.default) throw new SchemaError(`Mark ${name} has no default value`);
@@ -142,7 +141,7 @@ export namespace Mark {
   export type Type<Value = unknown> = MarkType<Value>;
 
   export interface Spec<Value> {
-    /** 小さいほど内側に来る。同じ組み合わせなら常に同じ並びになる。 */
+    /** 小さいほど内側 */
     rank?: number;
     /** 付けられるノードの範囲。省略時はインライン全部。 */
     target?: Node.Query;

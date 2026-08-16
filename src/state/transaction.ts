@@ -4,10 +4,8 @@ import type { Selection } from "./selection";
 import type { EditorState } from "./state";
 
 /**
- * 状態の更新の指定。**コマンドはこれを返す**。
- *
- * 位置は「この spec を適用する前の doc」の座標。`selection` に関数を渡すと、
- * 変更後の doc と変更そのものを見て決められる。
+ * コマンドが返すもの。位置は spec を適用する **前** の doc の座標。`selection` に関数を
+ * 渡すと、変更後の doc を見て決められる。
  */
 export interface TransactionSpec {
   changes?: ChangeSpec | readonly ChangeSpec[];
@@ -20,12 +18,7 @@ export interface TransactionSpec {
   userEvent?: string;
 }
 
-/**
- * 状態から状態への 1 回分の更新。
- *
- * ステップの列ではなく、**変更 1 個 ({@link ChangeSet}) と、選択・注釈・効果**を持つ。
- * 組み立てるのは {@link EditorState.update}。
- */
+/** ステップの列ではなく、変更 1 個 ({@link ChangeSet}) と選択・注釈・効果を持つ */
 export class Transaction {
   private cachedState: EditorState | null = null;
 
@@ -48,7 +41,7 @@ export class Transaction {
     return this.startState.schema;
   }
 
-  /** この更新を適用した状態。1 度だけ作ってから使い回す。 */
+  /** 1 度だけ作って使い回す */
   get state(): EditorState {
     if (!this.cachedState) this.cachedState = this.startState.applyTransaction(this);
     return this.cachedState;
@@ -61,24 +54,22 @@ export class Transaction {
     return undefined;
   }
 
-  /** その型の効果を集める */
   effect<T>(type: Effect.Type<T>): T[] {
     return this.effects.filter((effect) => effect.type === type).map((effect) => effect.value as T);
   }
 
-  /** 何が起こした更新かを前方一致で調べる (`"input.type"` など) */
+  /** 前方一致。`"input.type"` は `"input.type.compose"` にも当たる */
   isUserEvent(event: string): boolean {
     const actual = this.annotation(Transaction.userEvent);
     return !!actual && (actual === event || actual.startsWith(`${event}.`));
   }
 
-  /** 位置を変更後の座標に写す */
   map(pos: number, assoc: -1 | 1 = 1): number {
     return this.changes.mapPos(pos, assoc);
   }
 }
 
-/** 型付きのメタ情報。更新に「誰が・なぜ」を載せる。 */
+/** 更新に「誰が・なぜ」を載せる */
 export class Annotation<T> {
   constructor(
     readonly type: Annotation.Type<T>,
@@ -101,10 +92,7 @@ export namespace Annotation {
   }
 }
 
-/**
- * 更新に添える指示。注釈と違って同じ型を何個でも載せられる。
- * フィールドがこれを見て自分の値を変える。
- */
+/** 注釈と違って同じ型を何個でも載せられる。フィールドがこれを見て自分の値を変える */
 export class Effect<T> {
   constructor(
     readonly type: Effect.Type<T>,
@@ -131,13 +119,10 @@ export namespace Effect {
 }
 
 export namespace Transaction {
-  /** 何が起こした更新か。`"input.type"` `"input.type.compose"` `"select.pointer"` など */
+  /** `"input.type"` `"input.type.compose"` `"select.pointer"` など */
   export const userEvent: Annotation.Type<string> = Annotation.define<string>();
 
-  /**
-   * 更新に追記する仕組み。組み立て中の更新を受け取り、足したい spec を返す。
-   * 返した spec の位置は**その時点の doc** の座標。{@link correction} はこの上に乗る。
-   */
+  /** 組み立て中の更新に追記する。返す spec の位置は **その時点の** doc の座標 */
   export const extender: Facet<(tr: Transaction) => TransactionSpec | null> =
     Facet.define<(tr: Transaction) => TransactionSpec | null>();
 }

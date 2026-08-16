@@ -2,13 +2,13 @@ import { ATOM_CHAR, type Elt, type Mark, type Node, type Plot } from "../doc";
 import type { InlineDecoration } from "./decoration";
 
 export interface RenderedBlock {
-  /** EditContext を張る外側の要素 */
+  /** 外側の要素 */
   dom: HTMLElement;
-  /** 中身を入れる要素。Shape に穴がなければ dom と同じ。 */
+  /** Shape に穴がなければ dom と同じ */
   contentDOM: HTMLElement;
 }
 
-/** Shape が返す Elt から DOM を組み立てる。`0` の位置が中身の入る穴。 */
+/** `0` の位置が中身の入る穴 */
 export function renderElt(elt: Elt): { dom: HTMLElement; contentDOM: HTMLElement | null } {
   const dom = document.createElement(elt.tagName);
   applyAttributes(dom, elt.attrs);
@@ -27,18 +27,23 @@ export function renderElt(elt: Elt): { dom: HTMLElement; contentDOM: HTMLElement
   return { dom, contentDOM };
 }
 
-export function createBlockDOM(block: Plot): RenderedBlock {
+/** インラインを持つ Plot の外枠。ここに EditContext が張られる */
+export function createTextblockDOM(block: Plot): RenderedBlock {
   const { dom, contentDOM } = renderElt(block.type.shape.render(block.param));
-  dom.setAttribute("data-ecw-block", "");
+  dom.setAttribute("data-ecw-textblock", "");
   // EditContext を付けると editable にはなるが、focus() を確実に効かせるために持たせる
   dom.tabIndex = -1;
   return { dom, contentDOM: contentDOM ?? dom };
 }
 
-/**
- * ブロックの中身を作り直す。DOM はブラウザに書き換えられないので、
- * 「現在の doc をそのまま描く」だけでよい。
- */
+/** ブロックを持つ Plot の外枠。編集ホストにはしないので tabIndex も付けない */
+export function createContainerDOM(block: Plot): RenderedBlock {
+  const { dom, contentDOM } = renderElt(block.type.shape.render(block.param));
+  dom.setAttribute("data-ecw-container", "");
+  return { dom, contentDOM: contentDOM ?? dom };
+}
+
+/** DOM はブラウザに書き換えられないので、現在の doc をそのまま描くだけでよい */
 export function renderBlockContent(
   contentDOM: HTMLElement,
   block: Plot,
@@ -80,7 +85,6 @@ interface Run {
   decorations: InlineDecoration[];
 }
 
-/** テキストを装飾の境目で切り分ける */
 function splitByDecorations(
   text: string,
   from: number,
@@ -109,10 +113,8 @@ function splitByDecorations(
 }
 
 /**
- * テキストにマークと装飾をかぶせる。
- *
- * マークは Shape が要素なら要素で包み、属性 (`style/...` を含む) なら
- * 一番内側の span にまとめて載せる。rank の小さいマークが内側に来る。
+ * マークは Shape が要素なら要素で包み、属性なら一番内側の span にまとめる。
+ * rank の小さいマークが内側に来る。
  */
 function renderInline(
   text: string,

@@ -7,6 +7,7 @@ export {
   joinForward,
   markChanges,
   rangeHasMark,
+  selectAll,
   splitBlock,
   toggleMark,
 } from "./commands/base";
@@ -51,6 +52,7 @@ export {
   compositionField,
 } from "./plugins/composition";
 export {
+  Blockquote,
   basicSchema,
   basicSchemaElements,
   Doc,
@@ -82,7 +84,13 @@ export {
   Transaction,
   type TransactionSpec,
 } from "./state/transaction";
-export { BlockView } from "./view/block-view";
+export {
+  BlockNodeView,
+  type BlockViewContext,
+  ContainerView,
+  syncBlockChildren,
+  TextblockView,
+} from "./view/block-view";
 export { DecorationSet, type InlineDecoration } from "./view/decoration";
 export {
   decorations,

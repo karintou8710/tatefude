@@ -1,11 +1,6 @@
 /**
- * ノードとマークの「DOM での姿」。
- *
- * Wordgard に倣って、描画は 1 つの Shape 定義から作る。`Elt` の子に置いた `0` が
- * 中身の入る穴になる。属性名を `style/foo` にすると style プロパティとして扱う
- * (傍点や縦中横のような、要素ではなくスタイルで表すマーク向け)。
- *
- * 雛形では HTML → doc のパースはまだ持っていない (Wordgard の parseRules 相当は M1)。
+ * `Elt` の子に置いた `0` が中身の入る穴。属性名を `style/foo` にすると style プロパティに
+ * なる (傍点のような、要素ではなくスタイルで表すマーク向け)。HTML → doc のパースは M1。
  */
 
 export type Attributes = Readonly<Record<string, string>>;

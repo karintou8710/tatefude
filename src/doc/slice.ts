@@ -3,18 +3,11 @@ import { type Node, Plot } from "./node";
 import { Pos } from "./pos";
 
 /**
- * ドキュメントの一部を「トークンの並び」として表したもの。
- *
- * ツリーを線形化する道具で、Wordgard の {@link Slice} と同じ考え方。
- * plot の開きと閉じもトークンなので、**ブロックの分割や結合が
- * 「トークンの挿入・削除」として表せる**。閉じトークンに識別子は無く、
- * そのとき開いている plot を閉じるだけ。
+ * plot の開きと閉じもトークンなので、ブロックの分割や結合がトークンの挿入・削除として
+ * 表せる。閉じトークンに識別子は無く、そのとき開いている plot を閉じるだけ。
  */
 
-/**
- * plot を閉じるトークン。
- * シンボルにしてあるのは、構造的な型ではノードと区別が付かなくなるため。
- */
+/** シンボルなのは、構造的な型ではノードと区別が付かなくなるため */
 export const Close = Symbol("ecw.close");
 
 export type CloseToken = typeof Close;
@@ -66,11 +59,7 @@ export class Slice {
     return Slice.of([...this.tokens, ...other.tokens]);
   }
 
-  /**
-   * [from, to) を切り出す。テキストは途中でも切れる。
-   * plot ノードに切れ目が掛かるときは、開き + 中身 + 閉じに展開してから切る
-   * (丸ごと入れると長さが合わなくなるため)。
-   */
+  /** plot に切れ目が掛かるときは展開してから切る。丸ごと入れると長さが合わなくなる */
   slice(from: number, to: number = this.length): Slice {
     if (from <= 0 && to >= this.length) return this;
     const out: Token[] = [];
@@ -94,7 +83,6 @@ export class Slice {
   }
 }
 
-/** doc の [from, to) をトークンの並びとして取り出す */
 export function sliceDoc(doc: Plot, from: number, to: number): Slice {
   const out: Token[] = [];
   collect(doc, 0, from, to, out);
@@ -105,7 +93,7 @@ function collect(parent: Plot, contentStart: number, from: number, to: number, o
   collectTokens(parent.content, contentStart, from, to, out);
 }
 
-/** トークンの並びから [from, to) を取り出す。plot は必要なら展開する。 */
+/** plot は必要なら展開する */
 function collectTokens(
   tokens: readonly Token[],
   start: number,
@@ -140,7 +128,7 @@ function collectTokens(
   return pos;
 }
 
-/** トークンの並びから plot を組み立てる。釣り合いが取れていなければ例外。 */
+/** 釣り合いが取れていなければ例外 */
 export function buildPlot(tag: Plot.Tag, tokens: readonly Token[]): Plot {
   const stack: { tag: Plot.Tag; content: Node[] }[] = [{ tag, content: [] }];
   for (const token of tokens) {

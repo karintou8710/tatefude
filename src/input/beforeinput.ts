@@ -1,28 +1,16 @@
-import {
-  type Command,
-  deleteSelection,
-  joinBackward,
-  joinForward,
-  splitBlock,
-  toggleMark,
-} from "../commands/base";
+import { type Command, deleteSelection, joinBackward, joinForward } from "../commands/base";
 import type { EditorView } from "../view/view";
 
 /**
- * EditContext が面倒を見てくれない入力をここで拾う。
- *
- * - Enter / Tab / 装飾は beforeinput しか来ない (EditContext は何もしない)
- * - 削除はブロックの内側なら EditContext が textupdate を投げるので、そのまま通す。
- *   ブロックの端と、ブロックを跨ぐ選択のときだけ自前で処理する。
- *
- * true を返すと呼び出し側が preventDefault し、EditContext 側の処理も止まる。
+ * keymap で捕まえたものはここに来ない (preventDefault 済み)。残すのは keymap に書けない
+ * ものだけ — 境界の削除と、macOS の Ctrl-H / Ctrl-D / Ctrl-O のように OS ごとに割り当ての
+ * 違うキー。キーではなく意図で受けるので、OS 別の割り当てを並べなくて済む。keymap に
+ * 割り当てがあるものは、入口が 2 つできるのでここには書かない。
  */
 export function handleBeforeInput(view: EditorView, event: InputEvent): boolean {
   switch (event.inputType) {
-    case "insertParagraph":
-      return run(view, splitBlock);
     case "insertLineBreak":
-      // 雛形には hard break が無いので握りつぶす (M1)
+      // 雛形に hard break が無いので握りつぶす (M1)
       return true;
     case "deleteContentBackward":
     case "deleteWordBackward":
@@ -30,16 +18,11 @@ export function handleBeforeInput(view: EditorView, event: InputEvent): boolean 
     case "deleteContentForward":
     case "deleteWordForward":
       return run(view, crossesBlocks(view) ? deleteSelection : joinForward);
-    case "formatBold":
-      return run(view, toggleMark("strong"));
-    case "formatItalic":
-      return run(view, toggleMark("em"));
     default:
       return false;
   }
 }
 
-/** コマンドが更新を返したら流す */
 function run(view: EditorView, command: Command): boolean {
   const spec = command(view.state);
   if (!spec) return false;
@@ -47,11 +30,11 @@ function run(view: EditorView, command: Command): boolean {
   return true;
 }
 
-/** 選択が複数ブロックに跨っているか (跨いでいたら EditContext には任せられない) */
+/** 跨いでいたら EditContext には任せられない */
 function crossesBlocks(view: EditorView): boolean {
   const { from, to, empty } = view.state.selection;
   if (empty) return false;
-  const fromBlock = view.blockAt(from);
-  const toBlock = view.blockAt(to);
+  const fromBlock = view.textblockAt(from);
+  const toBlock = view.textblockAt(to);
   return !fromBlock || !toBlock || fromBlock !== toBlock;
 }

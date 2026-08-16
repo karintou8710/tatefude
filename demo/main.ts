@@ -1,7 +1,7 @@
 import { Leaf, Mark, type Schema } from "../src/doc";
 import { isEditContextSupported } from "../src/ime/edit-context-api";
 import { composition } from "../src/plugins/composition";
-import { basicSchema, EmphasisDots, Paragraph, Strong } from "../src/schema-basic";
+import { Blockquote, basicSchema, EmphasisDots, Paragraph, Strong } from "../src/schema-basic";
 import { EditorState } from "../src/state/state";
 import type { Transaction } from "../src/state/transaction";
 import { EditorView } from "../src/view/view";
@@ -15,6 +15,11 @@ const makeDoc = (schema: Schema) =>
       Leaf.text(" が "),
       Leaf.text("傍点", EmphasisDots.addToSet(Mark.none)),
       Leaf.text(" と decoration で描かれます。"),
+    ]),
+    // 中身がブロックの Plot。EditContext は張らず、中の段落が 1 つずつ持つ
+    Blockquote.create([
+      Paragraph.create([Leaf.text("引用の中の段落。ここにも EditContext が張られます。")]),
+      Paragraph.create([Leaf.text("引用の中で Enter を押すと、引用の中で割れます。")]),
     ]),
     Paragraph.create([]),
   ]);
@@ -39,6 +44,21 @@ view.ime.debug = (type, detail) => {
   pushEvent(type, detail);
   renderDebug();
 };
+
+// keydown と compositionstart / compositionend の前後関係を見るための記録。
+// isComposing は EditContext 経路では常に false になるので、並べて出しておく。
+view.dom.addEventListener(
+  "keydown",
+  (event) => {
+    pushEvent("keydown", {
+      key: event.key,
+      isComposing: event.isComposing,
+      composing: view.ime.composing,
+    });
+    renderDebug();
+  },
+  true,
+);
 
 const supportEl = document.querySelector<HTMLElement>("#support");
 if (supportEl) {
@@ -76,7 +96,7 @@ function renderDebug(): void {
   if (!contexts) return;
   contexts.textContent = "";
   view.ime.all.forEach((context, index) => {
-    const block = view.blocks[index];
+    const block = view.textblocks[index];
     const element = document.createElement("div");
     element.className = context.dom === document.activeElement ? "context active" : "context";
     element.innerHTML = [

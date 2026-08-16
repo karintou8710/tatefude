@@ -3,71 +3,95 @@ import { buildTextblockMap } from "../doc";
 import { type CompositionEvent, compositionEvent } from "../plugins/composition";
 import { TextSelection } from "../state/selection";
 import type { EditorState } from "../state/state";
-import type { BlockView } from "../view/block-view";
+import type { TextblockView } from "../view/block-view";
 import type { InlineDecoration } from "../view/decoration";
 import type { EditorView } from "../view/view";
-import { BlockEditContext, type BlockEditContextHandlers } from "./block-context";
+import { BlockEditContext } from "./block-context";
 import { characterBoundsFor, controlBoundsFor, selectionBoundsFor } from "./bounds";
 import type { TextFormatLike, TextUpdateEventLike } from "./edit-context-api";
 import { isEditContextSupported } from "./edit-context-api";
 
+/** compositionend から keydown までの猶予。確定の Enter はこの中に収まる */
+const COMPOSITION_END_SLACK = 200;
+/** 十分に昔。差を取ると必ず猶予を超える */
+const NEVER = Number.NEGATIVE_INFINITY;
+
 /**
- * ブロックと EditContext の対応を保つ。
+ * doc が唯一の真実で、各 EditContext のバッファはその射影。state 更新のたびに全ブロック分を
+ * 合わせ直す (フォーカス中のブロックだけではない)。
  *
- * doc が唯一の真実で、各 EditContext のバッファはその射影。state が更新されるたびに
- * 全ブロック分のバッファを合わせ直す (フォーカス中のブロックだけではない)。
+ * EditContext のインスタンスを持つのは {@link TextblockView} の側。ここは張り方と、
+ * イベントを doc に反映する経路だけを持つ。
  */
 export class EditContextManager {
-  private readonly contexts: BlockEditContext[] = [];
-  private readonly handlers: BlockEditContextHandlers;
-  /** デバッグ用に IME イベントを覗くためのフック */
   debug: ((type: string, detail: unknown) => void) | null = null;
+  private compositionEndedAt = NEVER;
 
-  constructor(private readonly view: EditorView) {
-    this.handlers = {
-      onTextUpdate: (target, event) => this.handleTextUpdate(target, event),
-      onTextFormatUpdate: (target, formats) => this.handleTextFormatUpdate(target, formats),
-      onCharacterBoundsUpdate: (target, start, end) =>
-        this.handleCharacterBoundsUpdate(target, start, end),
+  constructor(private readonly view: EditorView) {}
+
+  get supported(): boolean {
+    return isEditContextSupported();
+  }
+
+  get active(): BlockEditContext | null {
+    return this.all.find((c) => c.dom === document.activeElement) ?? null;
+  }
+
+  get all(): readonly BlockEditContext[] {
+    const contexts: BlockEditContext[] = [];
+    for (const block of this.view.textblocks) if (block.ec) contexts.push(block.ec);
+    return contexts;
+  }
+
+  /**
+   * 変換中か。**`KeyboardEvent.isComposing` は使えない** — EditContext が付いていると
+   * IME の入力は `WebInputMethodControllerImpl::SetComposition` から EditContext 側へ
+   * 直行し、`InputMethodController` には composition が立たない。`isComposing` はその
+   * `HasComposition()` を見ている (`events/keyboard_event.cc:71`) ので常に false になる。
+   */
+  get composing(): boolean {
+    return this.all.some((context) => context.composing);
+  }
+
+  /**
+   * 変換を確定させた keydown か。確定の Enter は変換を閉じるためのもので、改行の意図では
+   * ないので捨てる。ただし捨てるのは確定直後の 1 回だけ — 2 回目の Enter は改行にする。
+   */
+  endedCompositionRecently(event: KeyboardEvent): boolean {
+    if (event.timeStamp - this.compositionEndedAt > COMPOSITION_END_SLACK) return false;
+    this.compositionEndedAt = NEVER;
+    return true;
+  }
+
+  /**
+   * テキストブロックの view から呼ばれる。ハンドラがその view を捕まえた状態で作るので、
+   * イベントから view への逆引きが要らない。
+   */
+  createFor(block: TextblockView): BlockEditContext | null {
+    if (!this.supported) return null;
+    return new BlockEditContext(block.dom, block.text, {
+      onTextUpdate: (context, event) => this.handleTextUpdate(block, context, event),
+      onTextFormatUpdate: (_, formats) => this.handleTextFormatUpdate(block, formats),
+      onCharacterBoundsUpdate: (context, start, end) =>
+        this.handleCharacterBoundsUpdate(block, context, start, end),
       onCompositionStart: () => {
         this.debug?.("compositionstart", {});
         this.dispatchComposition({ type: "start" });
       },
       onCompositionEnd: () => {
         this.debug?.("compositionend", {});
+        this.compositionEndedAt = performance.now();
         this.dispatchComposition({ type: "end" });
       },
-    };
-  }
-
-  get supported(): boolean {
-    return isEditContextSupported();
-  }
-
-  /** フォーカス中のブロックの EditContext (デバッグ表示用) */
-  get active(): BlockEditContext | null {
-    return this.contexts.find((c) => c.dom === document.activeElement) ?? null;
-  }
-
-  get all(): readonly BlockEditContext[] {
-    return this.contexts;
+    });
   }
 
   syncFromState(state: EditorState): void {
-    if (!this.supported) return;
-    const blocks = this.view.blocks;
     const selection = state.selection;
+    for (const block of this.view.textblocks) {
+      const context = block.ec;
+      if (!context) continue;
 
-    for (let i = 0; i < blocks.length; i++) {
-      const block = blocks[i];
-      let context = this.contexts[i];
-      if (!context || context.dom !== block.dom) {
-        context?.destroy();
-        context = new BlockEditContext(block.dom, block.text, this.handlers);
-        this.contexts[i] = context;
-      }
-
-      // 選択がこのブロックに掛かっていれば、その部分を EditContext の選択にする
       const overlaps = selection.to >= block.contentFrom && selection.from <= block.contentTo;
       const range = overlaps
         ? {
@@ -84,28 +108,14 @@ export class EditContextManager {
         );
       }
     }
-
-    while (this.contexts.length > blocks.length) {
-      this.contexts.pop()?.destroy();
-    }
   }
 
-  destroy(): void {
-    for (const context of this.contexts) context.destroy();
-    this.contexts.length = 0;
-  }
-
-  private blockFor(context: BlockEditContext): BlockView | null {
-    return this.view.blocks.find((block) => block.dom === context.dom) ?? null;
-  }
-
-  /**
-   * EditContext のバッファ上の変更を、そのままドキュメントの変更に写す。
-   * オフセットはブロックローカルなので、写像もブロックの中で閉じている。
-   */
-  private handleTextUpdate(context: BlockEditContext, event: TextUpdateEventLike): void {
-    const block = this.blockFor(context);
-    if (!block) return;
+  /** オフセットはブロックローカルなので、写像もブロックの中で閉じている */
+  private handleTextUpdate(
+    block: TextblockView,
+    context: BlockEditContext,
+    event: TextUpdateEventLike,
+  ): void {
     this.debug?.("textupdate", {
       range: [event.updateRangeStart, event.updateRangeEnd],
       text: event.text,
@@ -123,7 +133,7 @@ export class EditContextManager {
         event.text,
         context.composing ? "input.type.compose" : "input.type",
       )(view.state),
-      // EditContext が言ってきた選択を、変更後のブロックのオフセットから解く
+      // EditContext が言う選択は変更後のオフセットなので、新しい doc から解き直す
       selection: (doc) => {
         const blockNode = doc.nodeAt(block.from);
         if (!blockNode?.isPlot) return null;
@@ -137,9 +147,7 @@ export class EditContextManager {
     });
   }
 
-  private handleTextFormatUpdate(context: BlockEditContext, formats: TextFormatLike[]): void {
-    const block = this.blockFor(context);
-    if (!block) return;
+  private handleTextFormatUpdate(block: TextblockView, formats: TextFormatLike[]): void {
     this.debug?.(
       "textformatupdate",
       formats.map((f) => [f.rangeStart, f.rangeEnd, f.underlineStyle, f.underlineThickness]),
@@ -158,12 +166,11 @@ export class EditContextManager {
   }
 
   private handleCharacterBoundsUpdate(
+    block: TextblockView,
     context: BlockEditContext,
     rangeStart: number,
     rangeEnd: number,
   ): void {
-    const block = this.blockFor(context);
-    if (!block) return;
     this.debug?.("characterboundsupdate", { range: [rangeStart, rangeEnd] });
     context.updateCharacterBounds(rangeStart, characterBoundsFor(block, rangeStart, rangeEnd));
   }

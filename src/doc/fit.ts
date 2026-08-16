@@ -4,18 +4,13 @@ import type { Schema } from "./schema";
 import { Close, isClose, isOpen, Slice, stackAt, type Token } from "./slice";
 
 /**
- * 「この範囲をこの内容に置き換えたい」という素朴な指定を、
- * **木として成立する変更**に直してから ChangeSet にする。
+ * 素朴な置換の指定を、木として成立する変更に直す。直すのは 2 つ。
  *
- * 直す必要があるのは 2 つ。
+ * 1. 釣り合い — 閉じトークンに識別子が無いので、必要なのは「置換のあと、開いている深さが
+ *    `to` の時点と一致すること」だけ
+ * 2. スキーマ — 置けない内容は、外側の plot を閉じるか、既定ブロックで包むか、落とす
  *
- * 1. **釣り合い** — 開きと閉じの数が合わないと木にならない。閉じトークンに識別子は
- *    無いので、必要なのは「置換のあと、開いている深さが `to` の時点の深さと一致すること」
- * 2. **スキーマ** — 置ける場所にしか置けない。置けなければ、外側の plot を閉じるか、
- *    既定のブロックで包むか、諦めて落とす
- *
- * Wordgard の ChangeFitter に当たるが、こちらは費用の比較による探索や、
- * 元の文脈への同期は持たない (包むのは既定ブロックの 1 段だけ)。
+ * 費用の比較による探索は持たない (包むのは既定ブロックの 1 段だけ)。
  */
 export function fitChange(
   schema: Schema,
@@ -66,10 +61,17 @@ export function fitChange(
     placeNode(token, schema, stack, out, closeOne, baseDepth);
   }
 
-  // 置換のあとの深さを、`to` の時点の深さに合わせる
+  // 置換のあとの深さを、`to` の時点の深さに合わせる。
+  // 開き直すときは、置ける親になるまで閉じてから開く (`to` 側の方が深いと、左の
+  // 開いたままの plot に右側の plot をそのまま入れられないことがある)
   while (stack.length > rightStack.length) closeOne();
-  for (let depth = stack.length; depth < rightStack.length; depth++) {
-    const tag = rightStack[depth];
+  while (stack.length < rightStack.length) {
+    const tag = rightStack[stack.length];
+    if (!schema.canContain(top().type, tag.type)) {
+      if (stack.length <= baseDepth) break;
+      closeOne();
+      continue;
+    }
     stack.push(tag);
     out.push(tag);
   }

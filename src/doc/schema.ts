@@ -4,12 +4,8 @@ import { Mark } from "./mark";
 import { Leaf, Node, Plot } from "./node";
 
 /**
- * スキーマは「どのノードとマークが使えるか」と「どこに置けるか」を決める。
- *
- * 中身の指定は Wordgard 流の {@link Node.Query} (型そのもの・グループ・和・積) で、
- * ProseMirror のようなコンテンツ式の文字列は持たない。
- * {@link Schema.validate} がドキュメントを再帰的に検査し、検査済みのノードは
- * WeakSet に覚えるので、変わっていない部分は 2 度見ない。
+ * 中身の指定は {@link Node.Query} (型・グループ・和・積) で、コンテンツ式の文字列は持たない。
+ * 検査済みのノードは WeakSet に覚えるので、変わっていない部分は 2 度見ない。
  */
 export class Schema {
   private readonly nodesByName = new Map<string, Node.Type>();
@@ -99,7 +95,7 @@ export class Schema {
     );
   }
 
-  /** このスキーマのドキュメントを作る。作るときに必ず検査する。 */
+  /** 作るときに必ず検査する */
   doc(content: readonly Node[]): Plot {
     const doc = this.docTag.create(content);
     this.validate(doc);
@@ -125,7 +121,6 @@ export class Schema {
     return !!mark && this.marksByName.get(mark.name) === mark;
   }
 
-  /** ノード型が指定に当てはまるか */
   matchNode(type: Node.Type, query: Node.Query): boolean {
     if (query instanceof Node.Group) {
       return this.nodeGroups.get(type)?.has(query) ?? false;
@@ -138,7 +133,6 @@ export class Schema {
     return (query as { and: readonly Node.Query[] }).and.every((q) => this.matchNode(type, q));
   }
 
-  /** parent の中身に child を置けるか */
   canContain(parent: Plot.Type, child: Node.Type): boolean {
     const content = this.plotContent.get(parent);
     if (content === undefined) return false;
@@ -146,13 +140,11 @@ export class Schema {
     return content === true ? true : this.matchNode(child, content);
   }
 
-  /** そのノードにマークを付けられるか */
   markAllowed(mark: Mark.Type, node: Node.Type): boolean {
     const target = this.markTarget.get(mark);
     return target ? this.matchNode(node, target) : false;
   }
 
-  /** ノードとその中身がスキーマに合っているか調べる */
   validate(node: Node): void {
     if (this.validated.has(node)) return;
     if (node.isLeaf) {
@@ -210,7 +202,7 @@ export class Schema {
 }
 
 export namespace Schema {
-  /** スキーマに渡せるもの。タグ・型・マークを 1 つの配列に混ぜて書く。 */
+  /** タグ・型・マークを 1 つの配列に混ぜて書ける */
   export type Element = Node.Tag | Node.Type | Mark | Mark.Type;
 }
 

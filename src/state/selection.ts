@@ -1,22 +1,15 @@
 import type { ChangeSet, Mark, Node, Plot } from "../doc";
 import { Pos } from "../doc";
 
-/**
- * 選択の基底。Wordgard に倣って、テキスト選択とノード選択を別の型にし、
- * 拡張が独自の選択型を足せるようにしてある。
- */
+/** テキスト選択とノード選択を別の型にし、拡張が独自の選択型を足せるようにしてある */
 export abstract class Selection {
   protected constructor(
     readonly $anchor: Pos,
     readonly $head: Pos,
-    /**
-     * この選択で次に入力される文字に付くマーク。
-     * ProseMirror の storedMarks に当たるが、状態ではなく選択が持つ (Wordgard と同じ)。
-     */
+    /** 次に入力される文字に付くマーク。storedMarks 相当だが、状態ではなく選択が持つ */
     readonly activeMarks: Mark.Set | null = null,
   ) {}
 
-  /** マークを差し替えた選択 */
   abstract withMarks(marks: Mark.Set | null): Selection;
 
   get anchor(): number {
@@ -55,7 +48,7 @@ export abstract class Selection {
     return { type: this.constructor.name, anchor: this.anchor, head: this.head };
   }
 
-  /** pos に一番近い、テキストを置ける位置にキャレットを置く */
+  /** pos に一番近い、テキストを置ける位置に寄せる */
   static near(doc: Plot, pos: number, bias: -1 | 1 = 1): TextSelection {
     const $pos = resolveNear(doc, pos, bias);
     return new TextSelection($pos, $pos);
@@ -70,7 +63,7 @@ export abstract class Selection {
   }
 }
 
-/** テキストの範囲 (キャレットを含む) */
+/** キャレット (空の範囲) もこれ */
 export class TextSelection extends Selection {
   map(doc: Plot, changes: ChangeSet): TextSelection {
     return new TextSelection(
@@ -89,7 +82,7 @@ export class TextSelection extends Selection {
   }
 }
 
-/** ノードそのものの選択 (画像や表など、中身ではなく箱を選ぶとき) */
+/** 画像や表など、中身ではなく箱を選ぶとき */
 export class NodeSelection extends Selection {
   private constructor(
     $anchor: Pos,
@@ -120,7 +113,7 @@ export class NodeSelection extends Selection {
   }
 }
 
-/** テキストブロックの中に収まる位置に丸めて解決する */
+/** テキストブロックの中に収まる位置に丸める */
 export function resolveNear(doc: Plot, pos: number, bias: -1 | 1 = 1): Pos {
   const size = doc.contentLength;
   const target = Math.max(0, Math.min(pos, size));

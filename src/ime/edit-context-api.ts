@@ -1,5 +1,5 @@
-// EditContext はまだ lib.dom.d.ts に無い環境があるので、必要な面だけ自前で型を持つ。
-// グローバルを書き換えないので、既存の型定義と衝突しない。
+// EditContext がまだ lib.dom.d.ts に無い環境があるので、必要な面だけ自前で持つ。
+// グローバルを書き換えないので既存の型定義と衝突しない。
 
 export interface TextUpdateEventLike extends Event {
   readonly updateRangeStart: number;
@@ -69,7 +69,7 @@ export function createEditContext(init?: EditContextInitLike): EditContextLike {
   return new ctor(init);
 }
 
-/** el.editContext への代入。型定義が無い環境でも通るようにここに閉じ込める。 */
+/** 型定義が無い環境でも通るようにここへ閉じ込める */
 export function attachEditContext(el: HTMLElement, editContext: EditContextLike | null): void {
   (el as unknown as { editContext: EditContextLike | null }).editContext = editContext;
 }

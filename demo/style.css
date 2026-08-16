@@ -59,13 +59,21 @@ header .controls {
 }
 
 /* EditContext を付けたブロックは editable 扱いになる。フォーカスリングは自前で消す。 */
-.ecw-editor [data-ecw-block] {
+.ecw-editor [data-ecw-textblock] {
   margin: 0 0 4px;
   outline: none;
 }
 
-.ecw-editor [data-ecw-block]:focus {
+.ecw-editor [data-ecw-textblock]:focus {
   outline: none;
+}
+
+/* 中身がブロックの Plot。EditContext は張らないので editable にはならない。
+   縦書きでは border-inline-start が自動で右側に回る。 */
+.ecw-editor [data-ecw-container] {
+  margin: 0 0 4px;
+  padding-inline-start: 12px;
+  border-inline-start: 3px solid var(--border);
 }
 
 .debug-pane {

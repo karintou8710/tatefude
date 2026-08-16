@@ -45,7 +45,7 @@ p.editContext = ec;
 | --- | --- | --- |
 | 文字入力・IME 変換 | `beforeinput` → EditContext がバッファを書き換え → `textupdate` | textupdate をトランザクションに変換 |
 | Backspace / Delete / 単語削除 | `beforeinput` → `EditContext::DeleteBackward()` 等 → `textupdate` | 同上。**keymap で二重処理しないこと** |
-| Enter / Tab / Ctrl+B,I,U | `beforeinput` **のみ**。EditContext は何もしない | 自前でコマンドを実行し、doc を更新して EC に push |
+| Enter / Tab / Ctrl+B,I,U | `beforeinput` は飛ぶが **EditContext は何もしない** | 自前でコマンドを実行し、doc を更新して EC に push。実際は `keydown` の側で捕まえる (§3) |
 | 矢印キー・クリック等の移動 | `beforeinput` + ネイティブの DOM selection 移動 | `selectionchange` から model selection を復元 |
 
 - 削除は EditContext 側が grapheme / 単語境界を計算してから `textupdate` を投げる
@@ -126,6 +126,35 @@ doc 全文を 1 つの EditContext に載せる案では、ブロック境界を
 結合や分割が「改行の削除・挿入」として無料で手に入る。ブロック単位ではそれが手に入らない
 代わりに、IME の見る世界が段落に閉じる。後者を採る。
 
+### ネストするブロック
+
+`Plot` は `blockContent` を持てるので、ブロックは入れ子になる (blockquote など)。
+**EditContext を張るのは `inlineContent` な Plot = テキストブロックだけ**。中身がブロックの
+Plot は編集ホストにしない (`tabIndex` も付けない)。
+
+```
+doc                                    DOM                              EditContext
+├ paragraph "あいう"              →   <p data-ecw-textblock>       ←→   EC("あいう")
+└ blockquote                      →   <blockquote data-ecw-container>    (張らない)
+  ├ paragraph "えお"              →     <p data-ecw-textblock>     ←→   EC("えお")
+  └ paragraph "かき"              →     <p data-ecw-textblock>     ←→   EC("かき")
+```
+
+view はブロックの構造だけを木で持ち (`BlockNodeView` = `TextblockView` / `ContainerView`)、
+**インラインの中には降りない**。ViewDesc を持たないという主張はインライン層のもので、
+ブロック層は doc がそうである以上、木になる。
+
+木と同時に、**テキストブロックを文書順に並べた配列 (`EditorView.textblocks`) を
+render の副産物として持つ**。跨ぎ移動・ドラッグ選択・Highlight・EditContext の同期が
+欲しいのは「文書順のテキストブロック列」だけなので、これがあればネストの知識が
+view 層の外へ漏れない。前後のブロックは `textblocks[index ± 1]` のままで、引用の内外を
+またぐ移動が自動的に正しくなる。
+
+- 位置 → view は `Pos.textblockDepth()` + `Pos.before(depth)` で doc 側から解く
+- EditContext のインスタンスは `TextblockView` が持つ。生成と破棄が view と 1 対 1 になり、
+  index の対応付けが要らない
+- view の使い回しは `node.type` の一致が条件。変換中に作り直すと未確定文字列が飛ぶ
+
 ### 位置の写像
 
 ブロックローカルなオフセットと doc の位置を写す。
@@ -166,12 +195,40 @@ function buildTextblockMap(block: Plot, blockFrom: number): TextblockMap;
 | **ブロック先頭での Backspace** | EditContext は無反応。`beforeinput` の `deleteContentBackward` を検知し、直前ブロックとの結合コマンドを実行 |
 | **ブロック末尾での Delete** | 同様に `deleteContentForward` → 次ブロックとの結合 |
 | **選択がブロックを跨ぐ状態での削除・入力** | `beforeinput` で乗っ取り、自前で範囲削除してから挿入 |
-| Enter | `beforeinput` の `insertParagraph`。ブロック分割 → 新ブロックの EC を作り `focus()` |
-| Mod-b / Mod-i | `beforeinput` の `formatBold` / `formatItalic`、または keymap |
+| Enter | `keydown` でブロック分割 → 新ブロックの EC を作り `focus()` |
+| Mod-b / Mod-i | `keydown` |
 | ブロック内のキャレット移動・選択 | ネイティブ。`selectionchange` で model に取り込む |
 | **ブロック境界を跨ぐ矢印キー移動** | `keydown` で「キャレットがブロックの端にいるか」を判定し、隣接ブロックへ `focus()` + キャレット設定 |
 | **ブロックを跨ぐドラッグ選択** | `mousedown` + `mousemove` を自前で追う (`input/pointer.ts`)。跨いだ瞬間だけ主導権を取り、DOM の選択との同期を止める |
 | **選択の描画** | ネイティブの選択描画は透明にして、model の選択を CSS Custom Highlight API で塗る (`view/selection-highlight.ts`) |
+
+### keydown と beforeinput の分担
+
+`keydown` (`input/keymap.ts`) が主、`beforeinput` (`input/beforeinput.ts`) が受け皿。
+
+| | 見るもの |
+| --- | --- |
+| `keymap.ts` | ブロックを跨ぐ移動、Mod-b / Mod-i、Enter。捕まえたら preventDefault |
+| `beforeinput.ts` | keymap が取りこぼした編集の意図。特に**境界の削除**は必ずここで見る。ほかにプラットフォーム固有のキー割り当てと、将来の貼り付け・切り取り |
+
+keydown を preventDefault すると beforeinput も EditContext も止まる。握り潰す力が
+一番強い場所なので、keymap に入れるキーは絞る。特に **Backspace / Delete は
+keymap で見ない** — 止めるとブロックの内側の削除まで EditContext から奪ってしまい、
+grapheme・単語境界の計算を自前で持つことになる (§2 の「keymap で二重処理しないこと」)。
+境界かどうかは `beforeinput` の側で判定して、そこだけ乗っ取る。
+
+**同じ意図を両方に書かない。** keymap に割り当てがあるものを beforeinput にも置くと、
+入口が 2 つできて「どちらを通ったか」で挙動が変わる余地が残る。beforeinput に残すのは、
+キーの割り当てが OS ごとに違って keymap には書き切れないものだけ。
+
+| inputType | keymap に書けない理由 |
+| --- | --- |
+| `deleteContentBackward` / `deleteWordBackward` ほか | Backspace のほかに macOS の Ctrl-H / Alt-Backspace などから飛ぶ。そもそも keymap では見ないと決めた入力 |
+| `deleteContentForward` / `deleteWordForward` | 同上 (macOS の Ctrl-D) |
+| `insertLineBreak` | Shift-Enter を keymap から意図的に流している先。macOS の Ctrl-O も来る |
+
+キーではなく意図で受けているので、OS ごとの割り当てを書き並べなくて済む。これが
+beforeinput を残す理由で、keymap と同じことを二度書く理由ではない。
 
 「ブロックの端にいるか」の判定は、行頭・行末 (ArrowUp/Down における視覚行) を含むので
 `coords.ts` の矩形計算に依存する。ここは実装が濁りやすいので、判定を
@@ -337,7 +394,7 @@ editcontext-wysiwyg/
 │   │   └── selection.ts    Selection (基底) / TextSelection / NodeSelection
 │   ├── view/
 │   │   ├── view.ts         EditorView: dispatch と更新ループ
-│   │   ├── block-view.ts   ブロック 1 つ分の描画状態 (DOM とノードの対応)
+│   │   ├── block-view.ts   ブロック 1 つ分の描画状態 (TextblockView / ContainerView)
 │   │   ├── render.ts       doc → DOM (ノード参照の等価性で差分描画)
 │   │   ├── decoration.ts   インライン装飾
 │   │   ├── dom-selection.ts model selection ↔ DOM Selection + focus
@@ -349,8 +406,8 @@ editcontext-wysiwyg/
 │   │   ├── manager.ts          ブロックと EditContext の対応付け + イベント処理
 │   │   └── bounds.ts           control / selection / character の矩形計算
 │   ├── input/
-│   │   ├── beforeinput.ts  Enter / 境界削除 / フォーマットの inputType 経路
-│   │   ├── keymap.ts       keydown → コマンド
+│   │   ├── keymap.ts       keydown → コマンド (主。跨ぎ移動 / Mod-b,i / Enter)
+│   │   ├── beforeinput.ts  受け皿。境界削除 / プラットフォーム固有キー / 将来の貼り付け
 │   │   ├── boundary.ts     ブロック境界の判定と跨ぎ移動
 │   │   └── pointer.ts      ドラッグ選択 (ブロックを跨いだときだけ主導権を取る)
 │   ├── commands/
@@ -452,7 +509,8 @@ class BlockEditContext {
 - undo / redo、コピー&ペースト、node view、テーブル、共同編集
 - Shift + クリックでの範囲拡張、ダブル / トリプルクリックの跨ぎ、タッチ・ペンでの選択
   (ドラッグは `mousedown` 系しか見ていない)
-- ネスト構造 (リスト、引用) — ブロックが入れ子になるとフォーカス管理の設計が増える
+- ネスト構造の**構造編集** — 描画と EditContext の割り当ては blockquote で対応済み (§2)。
+  引用を出る Backspace、引用ごとの選択 (NodeSelection)、空になった引用の畳み込みは未実装
 - Safari / Firefox 向けの contenteditable フォールバック
 - モバイル (Android / iOS のソフトキーボード)
 
@@ -486,7 +544,7 @@ per-block 構成の成否がここに乗っている。確認したことは `do
 3. §7 の spike
 4. `ime/block-text` と写像の単体テスト (先に固める)
 5. `ime/block-context` + `manager` + `handlers` → ブロック内の直接入力と IME が動く
-6. `input/beforeinput` + `boundary` → Enter / 境界の結合 / 跨ぎ移動
+6. `input/keymap` + `beforeinput` + `boundary` → Enter / 境界の結合 / 跨ぎ移動
 7. `decoration` + `composition` プラグイン → IME 変換の下線
 8. `bounds` → 候補ウィンドウの位置
 9. デモのデバッグパネル

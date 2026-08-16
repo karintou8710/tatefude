@@ -1,5 +1,5 @@
 import { TextSelection } from "../state/selection";
-import type { BlockView } from "../view/block-view";
+import type { TextblockView } from "../view/block-view";
 import {
   caretPointFromCoords,
   caretRectAt,
@@ -11,7 +11,6 @@ import type { EditorView } from "../view/view";
 
 type ArrowKey = "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown";
 
-/** 矢印キーが論理的にどちらの軸のどちら向きか。書字方向で入れ替わる。 */
 interface ArrowIntent {
   /** 行の中を進むか (inline)、行を跨ぐか (block) */
   axis: "inline" | "block";
@@ -33,10 +32,8 @@ function intentOf(key: ArrowKey, dom: HTMLElement): ArrowIntent {
 }
 
 /**
- * ブロックを跨ぐキャレット移動。
- *
- * ブロックごとに EditContext を張ると、ブロック 1 つ 1 つが独立した編集領域になるので、
- * 端から先へ出る移動はブラウザがやってくれない。ここで隣のブロックへフォーカスごと移す。
+ * ブロックごとに EditContext を張ると 1 つずつが独立した編集領域になるので、端から先へ
+ * 出る移動はブラウザがやってくれない。ここで隣のブロックへフォーカスごと移す。
  */
 export function handleBoundaryArrow(view: EditorView, event: KeyboardEvent): boolean {
   if (event.altKey || event.ctrlKey || event.metaKey) return false;
@@ -46,9 +43,9 @@ export function handleBoundaryArrow(view: EditorView, event: KeyboardEvent): boo
   }
 
   const selection = view.state.selection;
-  const index = view.blockIndexAt(selection.head);
+  const index = view.textblockIndexAt(selection.head);
   if (index < 0) return false;
-  const block = view.blocks[index];
+  const block = view.textblocks[index];
   const offset = block.text.posToOffset(selection.head);
   const { axis, backward } = intentOf(key, block.contentDOM);
 
@@ -60,7 +57,7 @@ export function handleBoundaryArrow(view: EditorView, event: KeyboardEvent): boo
         : offset === block.text.length;
   if (!atEdge) return false;
 
-  const target = view.blocks[backward ? index - 1 : index + 1];
+  const target = view.textblocks[backward ? index - 1 : index + 1];
   if (!target) return false;
 
   // 行を跨ぐ移動では、インライン方向の位置をなるべく保つ
@@ -74,23 +71,19 @@ export function handleBoundaryArrow(view: EditorView, event: KeyboardEvent): boo
   return true;
 }
 
-/** キャレットのインライン方向の座標 (横書きなら x、縦書きなら y) */
-function alongOf(block: BlockView, offset: number): number {
+/** インライン方向の座標 (横書きなら x、縦書きなら y) */
+function alongOf(block: TextblockView, offset: number): number {
   const caret = caretRectAt(block.contentDOM, offset);
   return writingModeOf(block.contentDOM).vertical ? caret.top : caret.left;
 }
 
-/**
- * 移動先ブロックの中の位置を決める。
- * `backward` が true なら移動先の末尾側 (ブロック方向の終わり) に入る。
- */
-function positionInBlock(target: BlockView, backward: boolean, along: number | null): number {
+/** `backward` が true なら移動先の末尾側 (ブロック方向の終わり) に入る */
+function positionInBlock(target: TextblockView, backward: boolean, along: number | null): number {
   const fallback = backward ? target.contentTo : target.contentFrom;
   if (along == null) return fallback;
 
   const { vertical, blockForwardIsPositive } = writingModeOf(target.contentDOM);
   const box = target.dom.getBoundingClientRect();
-  // 入っていく側の物理的な端。backward なら移動先のブロック方向の終わり側。
   const atBlockEnd = backward;
   const wantPositiveEdge = blockForwardIsPositive ? atBlockEnd : !atBlockEnd;
   const blockCoord = vertical

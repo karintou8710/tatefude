@@ -17,7 +17,6 @@ export interface BlockEditContextHandlers {
   onCompositionEnd(target: BlockEditContext): void;
 }
 
-/** ブロック 1 つに張り付く EditContext */
 export class BlockEditContext {
   readonly ec: EditContextLike;
   composing = false;
@@ -41,10 +40,8 @@ export class BlockEditContext {
   }
 
   /**
-   * doc を正として EditContext のバッファを合わせ直す。
-   * 比較の相手は「最後に自分が押し込んだ文字列」ではなく EditContext が実際に持っている
-   * 文字列。EditContext 自身が書き換えた直後は差分が出ないので、変換中に updateText を
-   * 叩いて IME を邪魔することがない。
+   * 比較の相手は EditContext が実際に持っている文字列 (最後に押し込んだ文字列ではない)。
+   * EditContext 自身が書き換えた直後は差分ゼロになり、変換中の IME を邪魔しない。
    */
   sync(next: TextblockMap, selection: { start: number; end: number } | null): void {
     const current = this.ec.text;
