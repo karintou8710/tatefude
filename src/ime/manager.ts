@@ -1,7 +1,8 @@
 import { buildTextblockMap, Pos } from "../doc";
-import { type CompositionMeta, compositionKey } from "../plugins/composition";
+import { type CompositionEvent, compositionEvent } from "../plugins/composition";
 import { TextSelection } from "../state/selection";
 import type { EditorState } from "../state/state";
+import { Transaction } from "../state/transaction";
 import type { BlockView } from "../view/block-view";
 import type { InlineDecoration } from "../view/decoration";
 import type { EditorView } from "../view/view";
@@ -137,7 +138,8 @@ export class EditContextManager {
       }
     }
 
-    if (context.composing) tr.setMeta("composing", true);
+    if (context.composing) tr.annotate(Transaction.userEvent, "input.type.compose");
+    else tr.annotate(Transaction.userEvent, "input.type");
     view.dispatch(tr);
   }
 
@@ -172,8 +174,8 @@ export class EditContextManager {
     context.updateCharacterBounds(rangeStart, characterBoundsFor(block, rangeStart, rangeEnd));
   }
 
-  private dispatchComposition(meta: CompositionMeta): void {
-    this.view.dispatch(this.view.state.tr.setMeta(compositionKey, meta));
+  private dispatchComposition(event: CompositionEvent): void {
+    this.view.dispatch(this.view.state.tr.annotate(compositionEvent, event));
   }
 }
 

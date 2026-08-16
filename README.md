@@ -7,8 +7,16 @@ contenteditable の DOM 監視・修復を一切持たないことが設計上�
 [Wordgard](https://wordgard.net/) の設計から学んでいます (コードは共有していません)。
 入力層は EditContext を前提に独自に設計しました。
 
-モデルの語彙は Wordgard 寄り (Plot / Leaf / Tag / Shape / クエリベースの Schema)、
-transform と state は ProseMirror 寄りです。
+ドキュメントモデル (Plot / Leaf / Tag / Shape / クエリベースの Schema) と、
+構成の仕組み (facet / extension / annotation / correction) は Wordgard 寄り。
+変更の表現だけステップ列で ProseMirror 寄りです。
+
+```ts
+const state = EditorState.create({
+  config: [basicSchema(), composition()],
+  doc: (schema) => schema.doc([...]),
+});
+```
 
 - 設計: [docs/design.md](docs/design.md) (モデルの詳細は §10)
 - EditContext の挙動メモ (Blink のソース + 実機): [docs/editcontext.md](docs/editcontext.md)

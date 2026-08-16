@@ -14,8 +14,12 @@ function paragraph(text: string): Plot {
 }
 
 function mount(...texts: string[]): EditorView {
-  const doc = basicSchema.doc(texts.map(paragraph));
-  return new EditorView(place, { state: EditorState.create({ schema: basicSchema, doc }) });
+  return new EditorView(place, {
+    state: EditorState.create({
+      config: [basicSchema()],
+      doc: (schema) => schema.doc(texts.map(paragraph)),
+    }),
+  });
 }
 
 function highlightRanges(): Range[] {

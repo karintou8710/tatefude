@@ -17,8 +17,12 @@ function mount(vertical: boolean, ...texts: string[]): EditorView {
   // 縦書きでは height が行の長さになる。折り返さないだけの長さを与える。
   place.style.height = vertical ? "300px" : "";
   place.style.fontSize = "16px";
-  const doc = basicSchema.doc(texts.map(paragraph));
-  return new EditorView(place, { state: EditorState.create({ schema: basicSchema, doc }) });
+  return new EditorView(place, {
+    state: EditorState.create({
+      config: [basicSchema()],
+      doc: (schema) => schema.doc(texts.map(paragraph)),
+    }),
+  });
 }
 
 function setCaret(pos: number): void {

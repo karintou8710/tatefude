@@ -1,11 +1,12 @@
-import { Leaf, type Mark, type Node, type Plot } from "../../src/doc";
-import { basicSchema, Emphasis, Paragraph, Strong } from "../../src/schema-basic";
+import { Leaf, type Mark, type Node, type Plot, Schema } from "../../src/doc";
+import { basicSchemaElements, Emphasis, Paragraph, Strong } from "../../src/schema-basic";
 
-export { basicSchema as schema, Emphasis, Paragraph, Strong };
+export const schema = Schema.define(basicSchemaElements);
+export { Emphasis, Paragraph, Strong };
 
 /** テスト用のドキュメント組み立て */
 export function doc(...blocks: Node[]): Plot {
-  return basicSchema.doc(blocks);
+  return schema.doc(blocks);
 }
 
 export function p(...content: (string | Node)[]): Plot {

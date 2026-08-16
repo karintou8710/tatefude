@@ -1,4 +1,6 @@
-import { Mark, Node, Plot, Schema } from "./doc";
+import { Mark, Node, Plot, type Schema } from "./doc";
+import type { Extension } from "./state/facet";
+import { schemaElement } from "./state/state";
 
 const G = Node.Group;
 
@@ -37,4 +39,16 @@ export const EmphasisDots = Mark.define("EmphasisDots", {
   shape: { attribute: "style/text-emphasis", value: "filled sesame" },
 });
 
-export const basicSchema = Schema.define([Doc, Paragraph, Strong, Emphasis, EmphasisDots]);
+/** このスキーマを構成するノード型とマーク型 */
+export const basicSchemaElements: readonly Schema.Element[] = [
+  Doc,
+  Paragraph,
+  Strong,
+  Emphasis,
+  EmphasisDots,
+];
+
+/** 構成に渡す extension。`config: [basicSchema()]` のように使う。 */
+export function basicSchema(): Extension {
+  return basicSchemaElements.map((element) => schemaElement.of(element));
+}

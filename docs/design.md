@@ -5,9 +5,9 @@ contenteditable の DOM 監視・修復を一切持たないことが設計上�
 
 決定事項:
 
-- ランタイム依存ゼロのフルスクラッチ。**ドキュメントモデルは Wordgard の設計に学ぶ**
-  (Plot / Leaf / Tag / Shape / Query ベースの Schema。コードは共有していない)。
-  transform と state は ProseMirror 寄りのまま (§10)
+- ランタイム依存ゼロのフルスクラッチ。**モデルと構成の仕組みは Wordgard の設計に学ぶ**
+  (doc は Plot / Leaf / Tag / Shape / Query ベースの Schema、state は facet / extension。
+  コードは共有していない)。変更の表現だけ ProseMirror 寄りのステップ列 (§10, §11)
 - **EditContext はブロック要素ごとに 1 つ**。各ブロックのバッファはそのブロックの全文を持ち、
   全ブロック分を常に保持する
 - M0 の範囲は §6
@@ -330,11 +330,12 @@ editcontext-wysiwyg/
 │   │   ├── step.ts         ReplaceText / SplitBlock / JoinBlock / Mark の 4 ステップ
 │   │   ├── mapping.ts      StepMap / Mapping
 │   │   └── transform.ts    replace / delete / split / join / mark
-│   ├── state/
-│   │   ├── selection.ts    TextSelection (NodeSelection は M1)
-│   │   ├── transaction.ts
-│   │   ├── plugin.ts       Plugin / PluginKey / state field / props
-│   │   └── state.ts        EditorState.apply
+│   ├── state/              構成と状態 (Wordgard = CodeMirror 式)
+│   │   ├── facet.ts        Facet / Field / Extension / Configuration
+│   │   ├── state.ts        EditorState.create({config, doc}) / facet() / field()
+│   │   ├── transaction.ts  Transaction / Annotation / extender
+│   │   ├── correction.ts   ドキュメントの不変条件を守る仕組み
+│   │   └── selection.ts    Selection (基底) / TextSelection / NodeSelection
 │   ├── view/
 │   │   ├── view.ts         EditorView: dispatch と更新ループ
 │   │   ├── block-view.ts   ブロック 1 つ分の描画状態 (DOM とノードの対応)
@@ -355,8 +356,9 @@ editcontext-wysiwyg/
 │   │   └── pointer.ts      ドラッグ選択 (ブロックを跨いだときだけ主導権を取る)
 │   ├── commands/
 │   │   └── base.ts         splitBlock / joinBackward / joinForward / toggleMark
+│   ├── view/extension.ts   view が読む facet (decorations / handleKeyDown / handleBeforeInput)
 │   └── plugins/
-│       ├── composition.ts  変換中の decoration
+│       ├── composition.ts  変換中の decoration (Field + Annotation)
 │       └── history.ts      undo / redo (M1)
 └── test/
     ├── model/*.test.ts     node 環境
@@ -570,8 +572,55 @@ export const EmphasisDots = Mark.define("EmphasisDots", {
 
 Wordgard にあって、雛形では省いたもの:
 
-- `ChangeSet` / `Slice` / `Token` — 変更の表現は 4 つのステップのままにしている
+- `ChangeSet` / `Slice` / `Token` — 変更の表現は 4 つのステップのままにしている (§11)
 - `parse` / `serialize` (HTML ↔ doc) — Shape に parse 側を足すのは M1
 - `Schema.Override` (スキーマごとの関係の上書き)
 - 集合値のマーク (`Mark.Spec.set`)、`Node.Role` の実利用
-- facet / `Extension` による構成 (state 層は ProseMirror 寄りのまま)
+
+---
+
+## 11. 構成と状態 (facet / extension)
+
+`src/state/` は Wordgard の state パッケージ、つまり CodeMirror 6 由来の
+**facet / extension** で組んである。プラグインという単位は無い。
+
+| 部品 | 役割 |
+| --- | --- |
+| `Facet<Input, Output>` | 「複数の入力を 1 つの出力に畳む」定義。`combine` を書かなければ入力の配列 |
+| `Extension` | facet に値を供給するもの、またはフィールドを足すもの。配列で入れ子にできる |
+| `Field<Value>` | 状態が持つ値。`create` で作り、トランザクションごとに `update` |
+| `Configuration` | extension の木を畳んで、フィールドと供給元を集めたもの |
+| `Annotation<T>` | 型付きのメタ情報。文字列キーの `setMeta` ではない |
+| `Transaction.extender` | dispatch されたトランザクションに追記する facet |
+| `Correction` | extender の上に乗る、ドキュメントの不変条件を守る仕組み |
+
+スキーマも facet で渡す。ノード型・マーク型を `schemaElement` に供給すると、
+構成側でスキーマが組み上がる。
+
+```ts
+const state = EditorState.create({
+  config: [basicSchema(), composition()],
+  doc: (schema) => schema.doc([...]),
+});
+```
+
+機能の足し方は「facet に値を供給する extension を config に並べる」だけになる。
+たとえば IME 変換中の下線は、装飾を持つフィールドと、それを `decorations` facet に
+流す `provide` の組で書かれている。
+
+```ts
+export const compositionField = Field.define<CompositionState>({
+  create: () => ({ decorations: DecorationSet.empty }),
+  update: (value, tr) => { /* 注釈を読んで装飾を作り直す */ },
+  provide: (field) => decorations.from(field, (value) => value.decorations),
+});
+```
+
+### 本家との違い
+
+- **値の計算は遅延 + 依存追跡ではない。** フィールドは構成順に先に作り、facet は
+  読まれたときに計算してメモ化するだけ。CodeMirror のスロット割り当てと再計算の
+  最小化は入れていない
+- **`Compartment` (構成の差し替え) と優先度 (`Prec`) が無い**
+- **変更の表現がステップ列のまま。** `state.update({changes})` のような宣言的な
+  トランザクション指定ではなく、`tr.replaceWithText(...)` と積んでいく形

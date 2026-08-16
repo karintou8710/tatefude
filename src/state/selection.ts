@@ -1,11 +1,13 @@
-import { type Plot, Pos } from "../doc";
+import type { Node, Plot } from "../doc";
+import { Pos } from "../doc";
 import type { Mapping } from "../transform/mapping";
 
-/** 雛形ではテキスト選択しか持たない (ノード選択は M1) */
-export type Selection = TextSelection;
-
-export class TextSelection {
-  constructor(
+/**
+ * 選択の基底。Wordgard に倣って、テキスト選択とノード選択を別の型にし、
+ * 拡張が独自の選択型を足せるようにしてある。
+ */
+export abstract class Selection {
+  protected constructor(
     readonly $anchor: Pos,
     readonly $head: Pos,
   ) {}
@@ -33,9 +35,36 @@ export class TextSelection {
   }
 
   eq(other: Selection): boolean {
-    return this.anchor === other.anchor && this.head === other.head;
+    return (
+      this.constructor === other.constructor &&
+      this.anchor === other.anchor &&
+      this.head === other.head
+    );
   }
 
+  abstract map(doc: Plot, mapping: Mapping): Selection;
+
+  toJSON(): { type: string; anchor: number; head: number } {
+    return { type: this.constructor.name, anchor: this.anchor, head: this.head };
+  }
+
+  /** pos に一番近い、テキストを置ける位置にキャレットを置く */
+  static near(doc: Plot, pos: number, bias: -1 | 1 = 1): TextSelection {
+    const $pos = resolveNear(doc, pos, bias);
+    return new TextSelection($pos, $pos);
+  }
+
+  static atStart(doc: Plot): TextSelection {
+    return Selection.near(doc, 0, 1);
+  }
+
+  static atEnd(doc: Plot): TextSelection {
+    return Selection.near(doc, doc.contentLength, -1);
+  }
+}
+
+/** テキストの範囲 (キャレットを含む) */
+export class TextSelection extends Selection {
   map(doc: Plot, mapping: Mapping): TextSelection {
     return new TextSelection(
       resolveNear(doc, mapping.map(this.anchor, 1)),
@@ -43,26 +72,34 @@ export class TextSelection {
     );
   }
 
-  toJSON(): { anchor: number; head: number } {
-    return { anchor: this.anchor, head: this.head };
-  }
-
   static create(doc: Plot, anchor: number, head: number = anchor): TextSelection {
     return new TextSelection(Pos.resolve(doc, anchor), Pos.resolve(doc, head));
   }
+}
 
-  /** pos に一番近い、テキストを置ける位置を選ぶ */
-  static near(doc: Plot, pos: number, bias: -1 | 1 = 1): TextSelection {
-    const $pos = resolveNear(doc, pos, bias);
-    return new TextSelection($pos, $pos);
+/** ノードそのものの選択 (画像や表など、中身ではなく箱を選ぶとき) */
+export class NodeSelection extends Selection {
+  private constructor(
+    $anchor: Pos,
+    $head: Pos,
+    readonly node: Node,
+  ) {
+    super($anchor, $head);
   }
 
-  static atStart(doc: Plot): TextSelection {
-    return TextSelection.near(doc, 0, 1);
+  /** pos はノードの直前の位置 */
+  static create(doc: Plot, pos: number): NodeSelection {
+    const node = doc.nodeAt(pos);
+    if (!node) throw new RangeError(`位置 ${pos} から始まるノードがない`);
+    return new NodeSelection(Pos.resolve(doc, pos), Pos.resolve(doc, pos + node.length), node);
   }
 
-  static atEnd(doc: Plot): TextSelection {
-    return TextSelection.near(doc, doc.contentLength, -1);
+  map(doc: Plot, mapping: Mapping): Selection {
+    const pos = mapping.map(this.anchor, 1);
+    const node = doc.nodeAt(pos);
+    // ノードが残っていなければテキスト選択に落とす
+    if (!node?.eq(this.node)) return Selection.near(doc, pos);
+    return NodeSelection.create(doc, pos);
   }
 }
 

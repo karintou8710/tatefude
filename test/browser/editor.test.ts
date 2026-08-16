@@ -23,9 +23,11 @@ function paragraph(text: string): Plot {
 }
 
 function mount(...texts: string[]): EditorView {
-  const doc = basicSchema.doc(texts.map(paragraph));
   return new EditorView(place, {
-    state: EditorState.create({ schema: basicSchema, doc, plugins: [composition()] }),
+    state: EditorState.create({
+      config: [basicSchema(), composition()],
+      doc: (schema) => schema.doc(texts.map(paragraph)),
+    }),
   });
 }
 

@@ -1,4 +1,4 @@
-import { Leaf, Mark } from "../src/doc";
+import { Leaf, Mark, type Schema } from "../src/doc";
 import { isEditContextSupported } from "../src/ime/edit-context-api";
 import { composition } from "../src/plugins/composition";
 import { basicSchema, EmphasisDots, Paragraph, Strong } from "../src/schema-basic";
@@ -6,19 +6,23 @@ import { EditorState } from "../src/state/state";
 import type { Transaction } from "../src/state/transaction";
 import { EditorView } from "../src/view/view";
 
-const doc = basicSchema.doc([
-  Paragraph.create([Leaf.text("EditContext で動くエディタの雛形です。")]),
-  Paragraph.create([
-    Leaf.text("日本語を入力すると "),
-    Leaf.text("変換中の下線", Strong.addToSet(Mark.none)),
-    Leaf.text(" が "),
-    Leaf.text("傍点", EmphasisDots.addToSet(Mark.none)),
-    Leaf.text(" と decoration で描かれます。"),
-  ]),
-  Paragraph.create([]),
-]);
+const makeDoc = (schema: Schema) =>
+  schema.doc([
+    Paragraph.create([Leaf.text("EditContext で動くエディタの雛形です。")]),
+    Paragraph.create([
+      Leaf.text("日本語を入力すると "),
+      Leaf.text("変換中の下線", Strong.addToSet(Mark.none)),
+      Leaf.text(" が "),
+      Leaf.text("傍点", EmphasisDots.addToSet(Mark.none)),
+      Leaf.text(" と decoration で描かれます。"),
+    ]),
+    Paragraph.create([]),
+  ]);
 
-const state = EditorState.create({ schema: basicSchema, doc, plugins: [composition()] });
+const state = EditorState.create({
+  config: [basicSchema(), composition()],
+  doc: makeDoc,
+});
 
 const place = document.querySelector<HTMLElement>("#editor");
 if (!place) throw new Error("#editor がない");

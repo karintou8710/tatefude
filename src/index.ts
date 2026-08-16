@@ -34,19 +34,39 @@ export { EditContextManager } from "./ime/manager";
 export { handleBeforeInput } from "./input/beforeinput";
 export { handleKeyDown } from "./input/keymap";
 export { PointerSelection, posAtCoords } from "./input/pointer";
-export { type CompositionState, composition, compositionKey } from "./plugins/composition";
+export {
+  type CompositionEvent,
+  type CompositionState,
+  composition,
+  compositionEvent,
+  compositionField,
+} from "./plugins/composition";
 export {
   basicSchema,
+  basicSchemaElements,
   Doc,
   Emphasis,
   EmphasisDots,
   Paragraph,
   Strong,
 } from "./schema-basic";
-export { Plugin, PluginKey, type PluginProps, type PluginSpec } from "./state/plugin";
-export { type Selection, TextSelection } from "./state/selection";
-export { EditorState, type EditorStateConfig } from "./state/state";
-export { Transaction } from "./state/transaction";
+export { type CorrectionContext, type CorrectionSpec, correction } from "./state/correction";
+export {
+  Configuration,
+  type Extension,
+  Facet,
+  type FacetSpec,
+  Field,
+  type FieldSpec,
+} from "./state/facet";
+export { NodeSelection, Selection, TextSelection } from "./state/selection";
+export {
+  type DocSource,
+  EditorState,
+  type EditorStateSpec,
+  schemaElement,
+} from "./state/state";
+export { Annotation, Transaction } from "./state/transaction";
 export { Mapping, StepMap } from "./transform/mapping";
 export {
   JoinBlockStep,
@@ -58,6 +78,11 @@ export {
 export { Transform } from "./transform/transform";
 export { BlockView } from "./view/block-view";
 export { DecorationSet, type InlineDecoration } from "./view/decoration";
+export {
+  decorations,
+  handleBeforeInput as beforeInputHandler,
+  handleKeyDown as keyDownHandler,
+} from "./view/extension";
 export {
   isHighlightSupported,
   SELECTION_HIGHLIGHT_NAME,

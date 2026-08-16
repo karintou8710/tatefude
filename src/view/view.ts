@@ -7,6 +7,11 @@ import type { Transaction } from "../state/transaction";
 import { BlockView } from "./block-view";
 import type { InlineDecoration } from "./decoration";
 import { readDOMSelection, writeDOMSelection } from "./dom-selection";
+import {
+  decorations,
+  handleBeforeInput as handleBeforeInputFacet,
+  handleKeyDown as handleKeyDownFacet,
+} from "./extension";
 import { SelectionHighlighter } from "./selection-highlight";
 
 export interface EditorViewProps {
@@ -52,10 +57,7 @@ export class EditorView {
 
   get decorations(): readonly InlineDecoration[] {
     const result: InlineDecoration[] = [];
-    for (const plugin of this.state.plugins) {
-      const set = plugin.props.decorations?.(this.state);
-      if (set) result.push(...set.decorations);
-    }
+    for (const set of this.state.facet(decorations)) result.push(...set.decorations);
     return result;
   }
 
@@ -129,8 +131,8 @@ export class EditorView {
   }
 
   private onKeyDown = (event: KeyboardEvent): void => {
-    for (const plugin of this.state.plugins) {
-      if (plugin.props.handleKeyDown?.(this, event)) {
+    for (const handler of this.state.facet(handleKeyDownFacet)) {
+      if (handler(this, event)) {
         event.preventDefault();
         return;
       }
@@ -139,8 +141,8 @@ export class EditorView {
   };
 
   private onBeforeInput = (event: InputEvent): void => {
-    for (const plugin of this.state.plugins) {
-      if (plugin.props.handleBeforeInput?.(this, event)) {
+    for (const handler of this.state.facet(handleBeforeInputFacet)) {
+      if (handler(this, event)) {
         event.preventDefault();
         return;
       }
