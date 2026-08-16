@@ -1,0 +1,89 @@
+:root {
+  color-scheme: light dark;
+  --border: color-mix(in srgb, currentColor 20%, transparent);
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 16px 24px;
+}
+
+header h1 {
+  font-size: 18px;
+  margin: 0 0 4px;
+}
+
+header p {
+  margin: 0 0 16px;
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+main {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(320px, 420px);
+  gap: 24px;
+  align-items: start;
+}
+
+.editor-pane {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 16px;
+}
+
+.ecw-editor {
+  min-height: 240px;
+  line-height: 1.9;
+  font-size: 16px;
+}
+
+/* EditContext を付けたブロックは editable 扱いになる。フォーカスリングは自前で消す。 */
+.ecw-editor [data-ecw-block] {
+  margin: 0 0 4px;
+  outline: none;
+}
+
+.ecw-editor [data-ecw-block]:focus {
+  outline: none;
+}
+
+.debug-pane {
+  font-size: 12px;
+}
+
+.debug-pane h2 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.6;
+  margin: 16px 0 6px;
+}
+
+.debug-pane pre {
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.context {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.context.active {
+  border-color: currentColor;
+}
+
+.context .label {
+  opacity: 0.6;
+}
