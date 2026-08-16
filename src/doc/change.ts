@@ -1,5 +1,5 @@
 import type { Plot } from "./node";
-import { buildPlot, Slice, sliceDoc } from "./slice";
+import { buildPlot, Slice, sliceDoc, type Token } from "./slice";
 
 /**
  * ドキュメントの変更を 1 個の値として表したもの。
@@ -16,7 +16,14 @@ import { buildPlot, Slice, sliceDoc } from "./slice";
 export interface ChangeSpec {
   from: number;
   to?: number;
-  insert?: Slice;
+  insert?: Slice | readonly Token[];
+  /** 木として成立する形に直してから使う (fitChange を通す) */
+  fit?: boolean;
+}
+
+function toSlice(insert: Slice | readonly Token[] | undefined): Slice {
+  if (!insert) return Slice.empty;
+  return insert instanceof Slice ? insert : Slice.of(insert);
 }
 
 export type Assoc = -1 | 1;
@@ -46,7 +53,7 @@ export class ChangeSet {
       .map((spec) => ({
         from: spec.from,
         to: spec.to ?? spec.from,
-        insert: spec.insert ?? Slice.empty,
+        insert: toSlice(spec.insert),
       }))
       .sort((a, b) => a.from - b.from || a.to - b.to);
 
@@ -222,6 +229,16 @@ export class ChangeSet {
     const queue = outputQueue(this);
     const builder = new ChangeBuilder();
 
+    /** 空になった置換区間 (削除だけ) を先に片付ける。放っておくと消費が進まない。 */
+    const drainEmpty = (): void => {
+      while (queue.length && queue[0].kind === "insert") {
+        const front = queue[0] as { kind: "insert"; slice: Slice; aDeleted: number };
+        if (!front.slice.empty) break;
+        queue.shift();
+        builder.replace(front.aDeleted, Slice.empty);
+      }
+    };
+
     /** 先頭の区間を n だけ消費する。keep なら消費した長さ、置換なら 0 を返す。 */
     const takeFront = (n: number): { taken: number; aDeleted: number; slice: Slice } => {
       const front = queue[0];
@@ -247,6 +264,8 @@ export class ChangeSet {
         // そのままの区間: A 側の出力をそのまま通す
         let left = len;
         while (left > 0) {
+          drainEmpty();
+          if (!queue.length) break;
           const front = queue[0];
           if (front.kind === "keep") {
             const { taken } = takeFront(left);
@@ -263,6 +282,8 @@ export class ChangeSet {
         let left = len;
         let deleted = 0;
         while (left > 0) {
+          drainEmpty();
+          if (!queue.length) break;
           const { taken, aDeleted } = takeFront(left);
           deleted += aDeleted;
           left -= taken;
@@ -270,10 +291,7 @@ export class ChangeSet {
         builder.replace(deleted, other.inserted[i / 2] ?? Slice.empty);
       }
       // 使い切った置換区間に削除だけが残っていたら出しておく
-      while (queue.length && queue[0].kind === "insert" && queue[0].slice.empty) {
-        const front = queue.shift() as { kind: "insert"; slice: Slice; aDeleted: number };
-        builder.replace(front.aDeleted, Slice.empty);
-      }
+      drainEmpty();
     }
 
     // 残りをそのまま流す

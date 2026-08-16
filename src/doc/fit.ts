@@ -20,11 +20,15 @@ import { Close, isClose, isOpen, Slice, stackAt, type Token } from "./slice";
 export function fitChange(
   schema: Schema,
   doc: Plot,
-  spec: { from: number; to?: number; insert?: Slice },
+  spec: { from: number; to?: number; insert?: Slice | readonly Token[] },
 ): ChangeSet {
   const from = spec.from;
   const to = spec.to ?? spec.from;
-  const insert = spec.insert ?? Slice.empty;
+  const insert = !spec.insert
+    ? Slice.empty
+    : spec.insert instanceof Slice
+      ? spec.insert
+      : Slice.of(spec.insert);
 
   const leftStack = stackAt(doc, from);
   const rightStack = stackAt(doc, to);

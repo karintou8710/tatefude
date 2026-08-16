@@ -1,8 +1,8 @@
-import { buildTextblockMap, Pos } from "../doc";
+import { insertText } from "../commands/base";
+import { buildTextblockMap } from "../doc";
 import { type CompositionEvent, compositionEvent } from "../plugins/composition";
 import { TextSelection } from "../state/selection";
 import type { EditorState } from "../state/state";
-import { Transaction } from "../state/transaction";
 import type { BlockView } from "../view/block-view";
 import type { InlineDecoration } from "../view/decoration";
 import type { EditorView } from "../view/view";
@@ -115,32 +115,26 @@ export class EditContextManager {
     const before = block.text;
     const from = before.offsetToPos(event.updateRangeStart);
     const to = before.offsetToPos(event.updateRangeEnd);
-    const marks = view.state.storedMarks ?? Pos.resolve(view.state.doc, from).marks();
 
-    const tr = view.state.tr;
-    tr.replaceWithText(from, to, event.text, marks);
-
-    if (event.text.includes("\n")) {
-      // 複数ブロックに割れる場合は、挿入し終わった位置にキャレットを置く
-      const caret = tr.map(to, 1);
-      tr.setSelection(TextSelection.near(tr.doc, caret, 1));
-    } else {
-      const blockNode = tr.doc.nodeAt(block.from);
-      if (blockNode?.isPlot) {
+    view.dispatch({
+      ...insertText(
+        from,
+        to,
+        event.text,
+        context.composing ? "input.type.compose" : "input.type",
+      )(view.state),
+      // EditContext が言ってきた選択を、変更後のブロックのオフセットから解く
+      selection: (doc) => {
+        const blockNode = doc.nodeAt(block.from);
+        if (!blockNode?.isPlot) return null;
         const after = buildTextblockMap(blockNode, block.from);
-        tr.setSelection(
-          TextSelection.create(
-            tr.doc,
-            after.offsetToPos(event.selectionStart),
-            after.offsetToPos(event.selectionEnd),
-          ),
+        return TextSelection.create(
+          doc,
+          after.offsetToPos(event.selectionStart),
+          after.offsetToPos(event.selectionEnd),
         );
-      }
-    }
-
-    if (context.composing) tr.annotate(Transaction.userEvent, "input.type.compose");
-    else tr.annotate(Transaction.userEvent, "input.type");
-    view.dispatch(tr);
+      },
+    });
   }
 
   private handleTextFormatUpdate(context: BlockEditContext, formats: TextFormatLike[]): void {
@@ -175,7 +169,7 @@ export class EditContextManager {
   }
 
   private dispatchComposition(event: CompositionEvent): void {
-    this.view.dispatch(this.view.state.tr.annotate(compositionEvent, event));
+    this.view.dispatch({ annotations: compositionEvent.of(event) });
   }
 }
 

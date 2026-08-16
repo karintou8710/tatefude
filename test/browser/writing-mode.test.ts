@@ -26,7 +26,7 @@ function mount(vertical: boolean, ...texts: string[]): EditorView {
 }
 
 function setCaret(pos: number): void {
-  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos)));
+  view.dispatch({ selection: TextSelection.create(view.state.doc, pos) });
 }
 
 /** preventDefault されたか (= 自前でブロックを跨いだか) */

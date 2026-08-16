@@ -67,7 +67,10 @@ export function handleBoundaryArrow(view: EditorView, event: KeyboardEvent): boo
   const along = axis === "block" ? alongOf(block, offset) : null;
   const head = positionInBlock(target, backward, along);
   const anchor = event.shiftKey ? selection.anchor : head;
-  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, anchor, head)));
+  view.dispatch({
+    selection: TextSelection.create(view.state.doc, anchor, head),
+    userEvent: "select.key",
+  });
   return true;
 }
 

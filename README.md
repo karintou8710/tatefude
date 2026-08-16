@@ -8,14 +8,23 @@ contenteditable の DOM 監視・修復を一切持たないことが設計上�
 入力層は EditContext を前提に独自に設計しました。
 
 ドキュメントモデル (Plot / Leaf / Tag / Shape / クエリベースの Schema)、
-構成の仕組み (facet / extension / annotation / correction)、
-変更の表現 (ChangeSet / Slice / Token) は Wordgard 寄りです。
+構成の仕組み (facet / extension / annotation / effect / correction)、
+変更の表現 (ChangeSet / Slice / Token / fit) は Wordgard に倣っています。
+ProseMirror の Step / Transform / storedMarks に当たるものはありません。
 
 ```ts
 const state = EditorState.create({
   config: [basicSchema(), composition()],
   doc: (schema) => schema.doc([...]),
 });
+
+// コマンドは「どう更新したいか」を返すだけ
+const splitBlock: Command = (state) => ({
+  changes: { from, to, insert: [Close, tag], fit: true },
+  selection: (doc, changes) => Selection.near(doc, changes.mapPos(to, 1)),
+  userEvent: "input.split",
+});
+view.dispatch(splitBlock(view.state));
 ```
 
 - 設計: [docs/design.md](docs/design.md) (モデルの詳細は §10)

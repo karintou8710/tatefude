@@ -30,7 +30,7 @@ function highlightRanges(): Range[] {
 }
 
 function select(anchor: number, head: number): void {
-  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, anchor, head)));
+  view.dispatch({ selection: TextSelection.create(view.state.doc, anchor, head) });
 }
 
 beforeEach(() => {

@@ -1,15 +1,11 @@
-import { type Mark, type Node, type Plot, Schema } from "../doc";
+import { ChangeSet, type ChangeSpec, fitChange, type Node, type Plot, Schema } from "../doc";
 import { Configuration, type Extension, Facet, type Field } from "./facet";
 import { Selection } from "./selection";
-import { Transaction } from "./transaction";
+import { Transaction, type TransactionSpec } from "./transaction";
 
 /**
  * スキーマの部品を供給する facet。スキーマ自体を渡すのではなく、
  * ノード型・マーク型を extension として並べると、構成側でスキーマが組み上がる。
- *
- * ```ts
- * EditorState.create({ config: [basicSchema(), composition()] })
- * ```
  */
 export const schemaElement: Facet<Schema.Element, Schema | null> = Facet.define<
   Schema.Element,
@@ -36,7 +32,6 @@ export class EditorState {
     readonly config: Configuration,
     readonly doc: Plot,
     readonly selection: Selection,
-    readonly storedMarks: Mark.Set | null,
     private readonly fieldValues: ReadonlyMap<number, unknown>,
   ) {}
 
@@ -66,10 +61,6 @@ export class EditorState {
     return this.fieldValues.get(field.id) as Value;
   }
 
-  get tr(): Transaction {
-    return new Transaction(this);
-  }
-
   static create(spec: EditorStateSpec = {}): EditorState {
     const config = Configuration.resolve(spec.config ?? []);
     const schema = config.staticFacet(schemaElement);
@@ -79,24 +70,101 @@ export class EditorState {
 
     // フィールドは並び順に作る。後のフィールドは前のフィールドを読める。
     const values = new Map<number, unknown>();
-    let state = new EditorState(config, doc, selection, null, values);
+    let state = new EditorState(config, doc, selection, values);
     for (const field of config.fields) {
       values.set(field.id, field.spec.create(state));
-      state = new EditorState(config, doc, selection, null, values);
+      state = new EditorState(config, doc, selection, values);
     }
     return state;
   }
 
-  apply(tr: Transaction): EditorState {
-    // 追記の仕組み。Correction もここを通る。
-    for (const extend of this.facet(Transaction.extender)) extend(tr);
+  /**
+   * 更新の指定から {@link Transaction} を作る。適用した状態は `tr.state`。
+   *
+   * `Transaction.extender` を通すので、{@link correction} などの追記もここで入る。
+   */
+  update(spec: TransactionSpec): Transaction {
+    let changes = resolveChanges(this.schema, this.doc, this.doc, spec.changes);
+    const annotations = [...asArray(spec.annotations)];
+    const effects = [...asArray(spec.effects)];
+    if (spec.userEvent) annotations.push(Transaction.userEvent.of(spec.userEvent));
+    let selectionSpec = spec.selection;
 
+    // 追記の仕組み。返ってきた spec の位置は、その時点の doc の座標。
+    for (const extend of this.facet(Transaction.extender)) {
+      const preliminary = this.buildTransaction(changes, annotations, effects, selectionSpec);
+      const extra = extend(preliminary);
+      if (!extra) continue;
+      const base = changes.apply(this.doc);
+      const added = resolveChanges(this.schema, base, base, extra.changes);
+      changes = changes.compose(added);
+      annotations.push(...asArray(extra.annotations));
+      effects.push(...asArray(extra.effects));
+      if (extra.userEvent) annotations.push(Transaction.userEvent.of(extra.userEvent));
+      if (extra.selection) selectionSpec = extra.selection;
+    }
+
+    return this.buildTransaction(changes, annotations, effects, selectionSpec);
+  }
+
+  private buildTransaction(
+    changes: ChangeSet,
+    // biome-ignore lint/suspicious/noExplicitAny: 注釈と効果は型ごとに値が違う
+    annotations: readonly any[],
+    // biome-ignore lint/suspicious/noExplicitAny: 同上
+    effects: readonly any[],
+    selectionSpec: TransactionSpec["selection"],
+  ): Transaction {
+    const newDoc = changes.apply(this.doc);
+    this.schema.validate(newDoc);
+    const selection =
+      (typeof selectionSpec === "function"
+        ? selectionSpec(newDoc, changes)
+        : (selectionSpec ?? null)) ?? this.selection.map(newDoc, changes);
+    return new Transaction(this, changes, newDoc, selection, annotations, effects);
+  }
+
+  /** @internal `tr.state` から呼ばれる */
+  applyTransaction(tr: Transaction): EditorState {
     const values = new Map<number, unknown>();
+    const next = new EditorState(this.config, tr.newDoc, tr.selection, values);
     for (const field of this.config.fields) {
       values.set(field.id, field.spec.update(this.fieldValues.get(field.id), tr));
     }
-    return new EditorState(this.config, tr.doc, tr.selection, tr.storedMarks, values);
+    return next;
   }
+}
+
+function asArray<T>(value: T | readonly T[] | undefined): readonly T[] {
+  if (value === undefined) return [];
+  return Array.isArray(value) ? (value as readonly T[]) : [value as T];
+}
+
+/**
+ * 変更の指定を ChangeSet にする。
+ * `fit` が立っている指定は、木として成立する形に直してから使う。
+ */
+function resolveChanges(
+  schema: Schema,
+  doc: Plot,
+  current: Plot,
+  spec: ChangeSpec | readonly ChangeSpec[] | undefined,
+): ChangeSet {
+  if (!spec) return ChangeSet.empty(doc.contentLength);
+  const list = (Array.isArray(spec) ? spec : [spec]) as readonly ChangeSpec[];
+  let changes = ChangeSet.empty(doc.contentLength);
+  let base = current;
+  for (const one of list) {
+    const from = changes.mapPos(one.from, -1);
+    const to = changes.mapPos(one.to ?? one.from, 1);
+    const mapped = { ...one, from, to };
+    const next = one.fit
+      ? fitChange(schema, base, mapped)
+      : ChangeSet.of(mapped, base.contentLength);
+    changes = changes.compose(next);
+    base = next.apply(base);
+  }
+  return changes;
 }
 
 function readDoc(schema: Schema, source: DocSource | undefined): Plot {

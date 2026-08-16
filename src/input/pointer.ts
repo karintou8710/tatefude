@@ -54,7 +54,7 @@ export class PointerSelection {
     this.view.suppressSelectionSync = true;
     const selection = TextSelection.create(this.view.state.doc, this.anchor, head);
     if (!selection.eq(this.view.state.selection)) {
-      this.view.dispatch(this.view.state.tr.setSelection(selection));
+      this.view.dispatch({ selection, userEvent: "select.pointer" });
     }
   };
 

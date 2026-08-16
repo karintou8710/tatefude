@@ -1,5 +1,5 @@
 import { ValidationError } from "./error";
-import { type Leaf, type Node, Plot } from "./node";
+import { type Node, Plot } from "./node";
 import { Pos } from "./pos";
 
 /**
@@ -51,11 +51,13 @@ export class Slice {
   }
 
   static of(tokens: readonly Token[]): Slice {
-    return tokens.length ? new Slice(tokens) : Slice.empty;
+    // 長さ 0 のトークン (空テキスト) は落とす。残すと消費が進まなくなる。
+    const kept = tokens.filter((token) => tokenLength(token) > 0);
+    return kept.length ? new Slice(kept) : Slice.empty;
   }
 
   get empty(): boolean {
-    return this.tokens.length === 0;
+    return this.length === 0;
   }
 
   append(other: Slice): Slice {
@@ -64,27 +66,15 @@ export class Slice {
     return Slice.of([...this.tokens, ...other.tokens]);
   }
 
-  /** トークン境界で切る。テキストだけは途中でも切れる。 */
+  /**
+   * [from, to) を切り出す。テキストは途中でも切れる。
+   * plot ノードに切れ目が掛かるときは、開き + 中身 + 閉じに展開してから切る
+   * (丸ごと入れると長さが合わなくなるため)。
+   */
   slice(from: number, to: number = this.length): Slice {
     if (from <= 0 && to >= this.length) return this;
     const out: Token[] = [];
-    let pos = 0;
-    for (const token of this.tokens) {
-      const length = tokenLength(token);
-      const start = pos;
-      const end = pos + length;
-      if (end > from && start < to) {
-        if (start >= from && end <= to) {
-          out.push(token);
-        } else if (isTextToken(token)) {
-          out.push(token.sliceText(Math.max(0, from - start), Math.min(length, to - start)));
-        } else {
-          // 開き / 閉じ / atom は割れないので、掛かっていれば丸ごと入れる
-          out.push(token);
-        }
-      }
-      pos = end;
-    }
+    collectTokens(this.tokens, 0, from, to, out);
     return Slice.of(out);
   }
 
@@ -104,10 +94,6 @@ export class Slice {
   }
 }
 
-function isTextToken(token: Token): token is Leaf<string> {
-  return !isClose(token) && !isOpen(token) && token.isLeaf && token.isText;
-}
-
 /** doc の [from, to) をトークンの並びとして取り出す */
 export function sliceDoc(doc: Plot, from: number, to: number): Slice {
   const out: Token[] = [];
@@ -116,28 +102,42 @@ export function sliceDoc(doc: Plot, from: number, to: number): Slice {
 }
 
 function collect(parent: Plot, contentStart: number, from: number, to: number, out: Token[]): void {
-  let pos = contentStart;
-  for (const child of parent.content) {
-    const childFrom = pos;
-    const childTo = pos + child.length;
-    pos = childTo;
-    if (childTo <= from || childFrom >= to) continue;
-    if (childFrom >= from && childTo <= to) {
-      out.push(child);
+  collectTokens(parent.content, contentStart, from, to, out);
+}
+
+/** トークンの並びから [from, to) を取り出す。plot は必要なら展開する。 */
+function collectTokens(
+  tokens: readonly Token[],
+  start: number,
+  from: number,
+  to: number,
+  out: Token[],
+): number {
+  let pos = start;
+  for (const token of tokens) {
+    const tokenFrom = pos;
+    const tokenTo = pos + tokenLength(token);
+    pos = tokenTo;
+    if (tokenTo <= from || tokenFrom >= to) continue;
+    if (tokenFrom >= from && tokenTo <= to) {
+      out.push(token);
       continue;
     }
-    if (child.isPlot) {
-      if (childFrom >= from) out.push(child.tag);
-      collect(child, childFrom + 1, from, to, out);
-      if (childTo <= to) out.push(Close);
-    } else if (child.isText) {
+    if (isClose(token) || isOpen(token)) {
+      out.push(token);
+    } else if (token.isPlot) {
+      if (tokenFrom >= from) out.push(token.tag);
+      collectTokens(token.content, tokenFrom + 1, from, to, out);
+      if (tokenTo <= to) out.push(Close);
+    } else if (token.isText) {
       out.push(
-        child.sliceText(Math.max(0, from - childFrom), Math.min(child.length, to - childFrom)),
+        token.sliceText(Math.max(0, from - tokenFrom), Math.min(token.length, to - tokenFrom)),
       );
     } else {
-      out.push(child);
+      out.push(token);
     }
   }
+  return pos;
 }
 
 /** トークンの並びから plot を組み立てる。釣り合いが取れていなければ例外。 */

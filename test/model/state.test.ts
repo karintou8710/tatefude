@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Leaf, Slice } from "../../src/doc";
 import { basicSchema, Paragraph } from "../../src/schema-basic";
 import { correction } from "../../src/state/correction";
 import { type Extension, Facet, Field } from "../../src/state/facet";
@@ -37,7 +38,7 @@ describe("facet", () => {
     const length = Facet.define<number, number>({ combine: (values) => values[0] ?? 0 });
     const state = stateWith([length.compute((s) => s.doc.textContent.length)]);
     expect(state.facet(length)).toBe(3);
-    const next = state.apply(state.tr.replaceWithText(2, 2, "XY"));
+    const next = state.update({ changes: insertAt(2, "XY") }).state;
     expect(next.facet(length)).toBe(5);
   });
 });
@@ -50,9 +51,9 @@ describe("field", () => {
     });
     let state = stateWith([count]);
     expect(state.field(count)).toBe(0);
-    state = state.apply(state.tr.replaceWithText(2, 2, "X"));
+    state = state.update({ changes: insertAt(2, "X") }).state;
     expect(state.field(count)).toBe(1);
-    state = state.apply(state.tr); // 変更なし
+    state = state.update({}).state; // 変更なし
     expect(state.field(count)).toBe(1);
   });
 
@@ -76,13 +77,13 @@ describe("annotation", () => {
   it("型付きで読み書きできる", () => {
     const source = Annotation.define<string>();
     const state = stateWith([]);
-    const tr = state.tr.annotate(source, "ime");
+    const tr = state.update({ annotations: source.of("ime") });
     expect(tr.annotation(source)).toBe("ime");
     expect(tr.annotation(Annotation.define<string>())).toBeUndefined();
   });
 
   it("userEvent は前方一致で調べられる", () => {
-    const tr = stateWith([]).tr.annotate(Transaction.userEvent, "input.type.compose");
+    const tr = stateWith([]).update({ userEvent: "input.type.compose" });
     expect(tr.isUserEvent("input")).toBe(true);
     expect(tr.isUserEvent("input.type")).toBe(true);
     expect(tr.isUserEvent("select")).toBe(false);
@@ -92,23 +93,30 @@ describe("annotation", () => {
 describe("extender と correction", () => {
   it("extender がトランザクションに追記できる", () => {
     const state = stateWith([
-      Transaction.extender.of((tr) => {
-        if (tr.docChanged) tr.annotate(Transaction.userEvent, "input.type");
-      }),
+      Transaction.extender.of((tr) =>
+        tr.docChanged ? { annotations: Transaction.userEvent.of("input.type") } : null,
+      ),
     ]);
-    const tr = state.tr.replaceWithText(2, 2, "X");
-    state.apply(tr);
+    const tr = state.update({ changes: insertAt(2, "X") });
     expect(tr.annotation(Transaction.userEvent)).toBe("input.type");
   });
 
   it("correction は変更のあったノードにだけ走る", () => {
     const seen: string[] = [];
     const state = stateWith(
-      [correction({ node: Paragraph.type, correct: ({ node }) => seen.push(node.textContent) })],
+      [
+        correction({
+          node: Paragraph.type,
+          correct: ({ node }) => {
+            seen.push(node.textContent);
+            return null;
+          },
+        }),
+      ],
       "abc",
       "def",
     );
-    state.apply(state.tr.replaceWithText(2, 2, "X"));
+    state.update({ changes: insertAt(2, "X") });
     expect(seen).toEqual(["aXbc"]);
   });
 
@@ -117,12 +125,13 @@ describe("extender と correction", () => {
     const state = stateWith([
       correction({
         node: Paragraph.type,
-        correct: ({ node, pos, tr }) => {
-          if (!node.textContent.endsWith("!")) tr.insertText(pos + 1 + node.contentLength, "!");
-        },
+        correct: ({ node, pos }) =>
+          node.textContent.endsWith("!")
+            ? null
+            : { from: pos + 1 + node.contentLength, insert: [Leaf.text("!")] },
       }),
     ]);
-    const next = state.apply(state.tr.replaceWithText(2, 2, "X"));
+    const next = state.update({ changes: insertAt(2, "X") }).state;
     expect(next.doc.child(0).textContent).toBe("aXbc!");
   });
 
@@ -133,10 +142,16 @@ describe("extender と correction", () => {
         node: Paragraph.type,
         correct: () => {
           calls++;
+          return null;
         },
       }),
     ]);
-    state.apply(state.tr);
+    state.update({});
     expect(calls).toBe(0);
   });
 });
+
+/** pos に文字を入れる変更 */
+function insertAt(pos: number, text: string) {
+  return { from: pos, to: pos, insert: Slice.of([Leaf.text(text)]) };
+}

@@ -1,6 +1,13 @@
-import { toggleMark } from "../commands/base";
+import { type Command, toggleMark } from "../commands/base";
 import type { EditorView } from "../view/view";
 import { handleBoundaryArrow } from "./boundary";
+
+function run(view: EditorView, command: Command): boolean {
+  const spec = command(view.state);
+  if (!spec) return false;
+  view.dispatch(spec);
+  return true;
+}
 
 const isMac = typeof navigator !== "undefined" && /Mac|iP(hone|ad|od)/.test(navigator.userAgent);
 
@@ -14,8 +21,8 @@ export function handleKeyDown(view: EditorView, event: KeyboardEvent): boolean {
   const mod = isMac ? event.metaKey : event.ctrlKey;
   if (mod && !event.altKey) {
     const key = event.key.toLowerCase();
-    if (key === "b") return toggleMark("strong")(view.state, view.dispatch);
-    if (key === "i") return toggleMark("em")(view.state, view.dispatch);
+    if (key === "b") return run(view, toggleMark("strong"));
+    if (key === "i") return run(view, toggleMark("em"));
   }
   return handleBoundaryArrow(view, event);
 }

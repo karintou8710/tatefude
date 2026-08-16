@@ -30,7 +30,7 @@ if (!place) throw new Error("#editor がない");
 const view = new EditorView(place, {
   state,
   dispatchTransaction(tr: Transaction) {
-    this.updateState(this.state.apply(tr));
+    this.updateState(tr.state);
     renderDebug();
   },
 });
@@ -53,7 +53,7 @@ for (const input of document.querySelectorAll<HTMLInputElement>('input[name="wri
     if (!input.checked) return;
     pane?.classList.toggle("vertical", input.value === "vertical");
     // 書字方向が変わると矩形が全部変わるので、EditContext に渡した bounds を取り直す
-    view.dispatch(view.state.tr.setSelection(view.state.selection));
+    view.dispatch({ selection: view.state.selection });
     view.focus();
     renderDebug();
   });

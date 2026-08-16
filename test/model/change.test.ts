@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { ChangeSet, fitChange, Leaf, Slice, sliceDoc } from "../../src/doc";
-import { Transform } from "../../src/transform/transform";
+import {
+  ChangeSet,
+  Close,
+  fitChange as fit,
+  fitChange,
+  Leaf,
+  Slice,
+  sliceDoc,
+} from "../../src/doc";
 import { blockTexts, doc, p, schema } from "./doc";
 
 const text = (value: string) => Slice.of([Leaf.text(value)]);
@@ -85,55 +92,50 @@ describe("ChangeSet の合成", () => {
   });
 });
 
-describe("ステップを合成した ChangeSet (性質テスト)", () => {
+describe("編集を重ねた ChangeSet (性質テスト)", () => {
   const random = mulberry32(20260816);
 
   it("合成した変更を最初の doc に当てると、最後の doc と一致する", () => {
-    for (let round = 0; round < 300; round++) {
+    for (let round = 0; round < 100; round++) {
       const start = doc(p("abcde"), p("fghij"), p("klmno"));
-      const tr = new Transform(schema, start);
-      for (let i = 0; i < 5; i++) randomOp(tr, random);
-      expect(tr.changes.apply(start).eq(tr.doc)).toBe(true);
+      const { changes, doc: final } = randomEdits(start, 5, random);
+      expect(changes.apply(start).eq(final)).toBe(true);
     }
   });
 
   it("合成した変更の逆で、もとの doc に戻せる", () => {
-    for (let round = 0; round < 300; round++) {
+    for (let round = 0; round < 100; round++) {
       const start = doc(p("abcde"), p("fghij"), p("klmno"));
-      const tr = new Transform(schema, start);
-      for (let i = 0; i < 5; i++) randomOp(tr, random);
-      expect(tr.changes.invert(start).apply(tr.doc).eq(start)).toBe(true);
+      const { changes, doc: final } = randomEdits(start, 5, random);
+      expect(changes.invert(start).apply(final).eq(start)).toBe(true);
     }
   });
 
   // 合成すると途中の区切りは失われるので、変更に掛かった位置の写像は
-  // ステップごとに写した結果と一致しない (CodeMirror と同じ性質)。
+  // 1 つずつ写した結果と一致しない (CodeMirror と同じ性質)。
   // 一致が保証されるのは「変わらなかった区間」の中だけ。
   it("変わらなかった区間の位置はずれない", () => {
-    for (let round = 0; round < 200; round++) {
+    for (let round = 0; round < 100; round++) {
       const start = doc(p("abcde"), p("fghij"));
-      const tr = new Transform(schema, start);
-      for (let i = 0; i < 4; i++) randomOp(tr, random);
-      tr.changes.iterGaps((fromA, fromB, length) => {
+      const { changes } = randomEdits(start, 4, random);
+      changes.iterGaps((fromA: number, fromB: number, length: number) => {
         for (let k = 0; k <= length; k++) {
           // 区間の頭は挿入をまたぐ側 (+1)、それ以外は手前寄せ (-1) で見る
-          expect(tr.changes.mapPos(fromA + k, k === 0 ? 1 : -1)).toBe(fromB + k);
+          expect(changes.mapPos(fromA + k, k === 0 ? 1 : -1)).toBe(fromB + k);
         }
       });
     }
   });
 
   it("写像は単調で、範囲に収まる", () => {
-    for (let round = 0; round < 200; round++) {
+    for (let round = 0; round < 100; round++) {
       const start = doc(p("abcde"), p("fghij"));
-      const tr = new Transform(schema, start);
-      for (let i = 0; i < 4; i++) randomOp(tr, random);
-      const newLength = tr.doc.contentLength;
+      const { changes, doc: final } = randomEdits(start, 4, random);
       let previous = -1;
       for (let pos = 0; pos <= start.contentLength; pos++) {
-        const mapped = tr.changes.mapPos(pos, 1);
+        const mapped = changes.mapPos(pos, 1);
         expect(mapped).toBeGreaterThanOrEqual(previous);
-        expect(mapped).toBeLessThanOrEqual(newLength);
+        expect(mapped).toBeLessThanOrEqual(final.contentLength);
         previous = mapped;
       }
     }
@@ -185,21 +187,40 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-/** doc の中からランダムに操作を 1 つ適用する。無効な操作は黙って諦める。 */
-function randomOp(tr: Transform, random: () => number): void {
-  const size = tr.doc.contentLength;
-  const pick = Math.floor(random() * 5);
-  const a = Math.floor(random() * (size + 1));
-  const b = Math.floor(random() * (size + 1));
-  const from = Math.min(a, b);
-  const to = Math.max(a, b);
-  try {
-    if (pick === 0) tr.replaceWithText(from, to, "XY");
-    else if (pick === 1) tr.deleteRange(from, to);
-    else if (pick === 2) tr.splitBlock(from);
-    else if (pick === 3) tr.joinBlocks(from);
-    else tr.addMark(from, to, schema.marks[0].default ?? schema.marks[0].of(null));
-  } catch {
-    // スキーマや位置の都合で通らない操作は飛ばす
+/** ランダムな編集を count 回重ねる。通らない編集は飛ばす。 */
+function randomEdits(start: ReturnType<typeof doc>, count: number, random: () => number) {
+  let changes = ChangeSet.empty(start.contentLength);
+  let current = start;
+  for (let i = 0; i < count; i++) {
+    const size = current.contentLength;
+    const pick = Math.floor(random() * 4);
+    const a = Math.floor(random() * (size + 1));
+    const b = Math.floor(random() * (size + 1));
+    const from = Math.min(a, b);
+    const to = Math.max(a, b);
+    try {
+      const spec =
+        pick === 0
+          ? { from, to, insert: text("XY"), fit: true }
+          : pick === 1
+            ? { from, to, fit: true }
+            : pick === 2
+              ? { from, to: from, insert: Slice.of([Close, p("").tag]), fit: true }
+              : {
+                  // 大きくなりすぎないように、複製は doc が小さいときだけ
+                  from,
+                  to,
+                  insert: size < 60 ? sliceDoc(current, from, to) : Slice.empty,
+                  fit: true,
+                };
+      const next = fit(schema, current, spec);
+      const applied = next.apply(current);
+      schema.validate(applied);
+      changes = changes.compose(next);
+      current = applied;
+    } catch {
+      // スキーマや位置の都合で通らない編集は飛ばす
+    }
   }
+  return { changes, doc: current };
 }

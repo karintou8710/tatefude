@@ -2,8 +2,11 @@ export {
   type Command,
   chainCommands,
   deleteSelection,
+  insertText,
   joinBackward,
   joinForward,
+  markChanges,
+  rangeHasMark,
   splitBlock,
   toggleMark,
 } from "./commands/base";
@@ -72,16 +75,13 @@ export {
   type EditorStateSpec,
   schemaElement,
 } from "./state/state";
-export { Annotation, Transaction } from "./state/transaction";
 export {
-  applyStep,
-  JoinBlockStep,
-  MarkStep,
-  ReplaceTextStep,
-  SplitBlockStep,
-  type Step,
-} from "./transform/step";
-export { Transform } from "./transform/transform";
+  Annotation,
+  Effect,
+  marksAt,
+  Transaction,
+  type TransactionSpec,
+} from "./state/transaction";
 export { BlockView } from "./view/block-view";
 export { DecorationSet, type InlineDecoration } from "./view/decoration";
 export {

@@ -1,4 +1,4 @@
-import type { ChangeSet, Node, Plot } from "../doc";
+import type { ChangeSet, Mark, Node, Plot } from "../doc";
 import { Pos } from "../doc";
 
 /**
@@ -9,7 +9,15 @@ export abstract class Selection {
   protected constructor(
     readonly $anchor: Pos,
     readonly $head: Pos,
+    /**
+     * この選択で次に入力される文字に付くマーク。
+     * ProseMirror の storedMarks に当たるが、状態ではなく選択が持つ (Wordgard と同じ)。
+     */
+    readonly activeMarks: Mark.Set | null = null,
   ) {}
+
+  /** マークを差し替えた選択 */
+  abstract withMarks(marks: Mark.Set | null): Selection;
 
   get anchor(): number {
     return this.$anchor.pos;
@@ -68,7 +76,12 @@ export class TextSelection extends Selection {
     return new TextSelection(
       resolveNear(doc, changes.mapPos(this.anchor, 1)),
       resolveNear(doc, changes.mapPos(this.head, 1)),
+      this.activeMarks,
     );
+  }
+
+  withMarks(marks: Mark.Set | null): TextSelection {
+    return new TextSelection(this.$anchor, this.$head, marks);
   }
 
   static create(doc: Plot, anchor: number, head: number = anchor): TextSelection {
@@ -82,8 +95,9 @@ export class NodeSelection extends Selection {
     $anchor: Pos,
     $head: Pos,
     readonly node: Node,
+    activeMarks: Mark.Set | null = null,
   ) {
-    super($anchor, $head);
+    super($anchor, $head, activeMarks);
   }
 
   /** pos はノードの直前の位置 */
@@ -91,6 +105,10 @@ export class NodeSelection extends Selection {
     const node = doc.nodeAt(pos);
     if (!node) throw new RangeError(`位置 ${pos} から始まるノードがない`);
     return new NodeSelection(Pos.resolve(doc, pos), Pos.resolve(doc, pos + node.length), node);
+  }
+
+  withMarks(marks: Mark.Set | null): NodeSelection {
+    return new NodeSelection(this.$anchor, this.$head, this.node, marks);
   }
 
   map(doc: Plot, changes: ChangeSet): Selection {

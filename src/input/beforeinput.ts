@@ -1,4 +1,5 @@
 import {
+  type Command,
   deleteSelection,
   joinBackward,
   joinForward,
@@ -17,28 +18,33 @@ import type { EditorView } from "../view/view";
  * true を返すと呼び出し側が preventDefault し、EditContext 側の処理も止まる。
  */
 export function handleBeforeInput(view: EditorView, event: InputEvent): boolean {
-  const { state, dispatch } = view;
   switch (event.inputType) {
     case "insertParagraph":
-      return splitBlock(state, dispatch);
+      return run(view, splitBlock);
     case "insertLineBreak":
       // 雛形には hard break が無いので握りつぶす (M1)
       return true;
     case "deleteContentBackward":
     case "deleteWordBackward":
-      if (crossesBlocks(view)) return deleteSelection(state, dispatch);
-      return joinBackward(state, dispatch);
+      return run(view, crossesBlocks(view) ? deleteSelection : joinBackward);
     case "deleteContentForward":
     case "deleteWordForward":
-      if (crossesBlocks(view)) return deleteSelection(state, dispatch);
-      return joinForward(state, dispatch);
+      return run(view, crossesBlocks(view) ? deleteSelection : joinForward);
     case "formatBold":
-      return toggleMark("strong")(state, dispatch);
+      return run(view, toggleMark("strong"));
     case "formatItalic":
-      return toggleMark("em")(state, dispatch);
+      return run(view, toggleMark("em"));
     default:
       return false;
   }
+}
+
+/** コマンドが更新を返したら流す */
+function run(view: EditorView, command: Command): boolean {
+  const spec = command(view.state);
+  if (!spec) return false;
+  view.dispatch(spec);
+  return true;
 }
 
 /** 選択が複数ブロックに跨っているか (跨いでいたら EditContext には任せられない) */

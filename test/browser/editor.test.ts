@@ -47,7 +47,7 @@ function fireBeforeInput(inputType: string): void {
 }
 
 function setCaret(pos: number): void {
-  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos)));
+  view.dispatch({ selection: TextSelection.create(view.state.doc, pos) });
 }
 
 function blockTexts(): string[] {
@@ -137,7 +137,7 @@ describe("EditContext との接続", () => {
 
   it("ブロックを跨ぐ選択の削除は自前で処理する", () => {
     view = mount("abc", "def");
-    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 3, 7)));
+    view.dispatch({ selection: TextSelection.create(view.state.doc, 3, 7) });
     fireBeforeInput("deleteContentBackward");
     expect(blockTexts()).toEqual(["abef"]);
   });

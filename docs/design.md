@@ -318,18 +318,17 @@ editcontext-wysiwyg/
 ├── src/
 │   ├── index.ts
 │   ├── schema-basic.ts     doc / paragraph / text + strong / em
-│   ├── doc/                ドキュメントモデル (Wordgard 由来・永続・不変)
+│   ├── doc/                ドキュメントモデルと変更 (Wordgard 由来・永続・不変)
 │   │   ├── node.ts         Node = Plot | Leaf、Tag、Group / Role / Query
 │   │   ├── mark.ts         Mark / Mark.Type (rank 順の集合)
 │   │   ├── shape.ts        Elt と Shape (ノード・マークの DOM での姿)
 │   │   ├── schema.ts       Schema.define / canContain / markAllowed / validate
+│   │   ├── slice.ts        Slice / Token (ツリーをトークンの並びに線形化)
+│   │   ├── change.ts       ChangeSet (変更 1 個。合成・逆・位置の写像)
+│   │   ├── fit.ts          fitChange (木として成立する形に直す)
 │   │   ├── pos.ts          Pos (解決済みの位置)
 │   │   ├── textblock.ts    TextblockMap (ブロック → フラット文字列 + 写像)
 │   │   └── error.ts        SchemaError / ValidationError
-│   ├── transform/
-│   │   ├── step.ts         ReplaceText / SplitBlock / JoinBlock / Mark の 4 ステップ
-│   │   ├── mapping.ts      StepMap / Mapping
-│   │   └── transform.ts    replace / delete / split / join / mark
 │   ├── state/              構成と状態 (Wordgard = CodeMirror 式)
 │   │   ├── facet.ts        Facet / Field / Extension / Configuration
 │   │   ├── state.ts        EditorState.create({config, doc}) / facet() / field()
@@ -355,7 +354,7 @@ editcontext-wysiwyg/
 │   │   ├── boundary.ts     ブロック境界の判定と跨ぎ移動
 │   │   └── pointer.ts      ドラッグ選択 (ブロックを跨いだときだけ主導権を取る)
 │   ├── commands/
-│   │   └── base.ts         splitBlock / joinBackward / joinForward / toggleMark
+│   │   └── base.ts         コマンド (状態を見て TransactionSpec を返す)
 │   ├── view/extension.ts   view が読む facet (decorations / handleKeyDown / handleBeforeInput)
 │   └── plugins/
 │       ├── composition.ts  変換中の decoration (Field + Annotation)
@@ -621,8 +620,7 @@ export const compositionField = Field.define<CompositionState>({
   読まれたときに計算してメモ化するだけ。CodeMirror のスロット割り当てと再計算の
   最小化は入れていない
 - **`Compartment` (構成の差し替え) と優先度 (`Prec`) が無い**
-- **トランザクションの指定が宣言的ではない。** `state.update({changes})` ではなく
-  `tr.replaceWithText(...)` と積んでいく形 (変更の表現自体は §12 の ChangeSet)
+- **`Compartment` (構成の差し替え) と優先度 (`Prec`) が無い**
 - **OT (`transform`) を入れていない。** 共同編集をやる段で足す
 
 ---
@@ -653,11 +651,36 @@ type Token = Node | Plot.Tag | typeof Close
 
 と、構造の操作がすべて「トークンの挿入・削除」に収まる。
 
-### ステップとの関係
+### 更新の指定 (TransactionSpec)
 
-各ステップは `getChanges(doc): ChangeSet` を返し、`Transform` はそれを合成して 1 個の
-ChangeSet を持つ。ステップは残っているので、`SplitBlockStep` を見れば「分割」だと分かる
-(意味が型に残る) 一方、変更の表現は合成できる 1 個の値になっている。
+Step も Transform も無い。**コマンドは「どう更新したいか」を返すだけ**で、
+組み立ては `EditorState.update(spec)` がやる。
+
+```ts
+export const splitBlock: Command = (state) => {
+  const { from, to } = state.selection;
+  const parent = state.selection.$from.parent;
+  if (!parent.isTextblock) return false;
+  return {
+    changes: { from, to, insert: [Close, parent.tag.split()], fit: true },
+    selection: (doc, changes) => Selection.near(doc, changes.mapPos(to, 1)),
+    userEvent: "input.split",
+  };
+};
+```
+
+`fit: true` を付けると {@link fitChange} を通る。**ブロックを跨ぐ削除は
+`{from, to, fit: true}` の 1 行で済む** — 昔は「末尾を削る → 先頭を削る → 順に結合」と
+手で書いていた手順が、修復に吸収された。
+
+`state.update(spec)` は `Transaction` を返し、適用した状態は `tr.state`。
+view は `dispatch(spec)` でも `dispatch(tr)` でも受ける。
+
+### 次に入力される文字のマーク
+
+ProseMirror の `storedMarks` に当たるものは、状態ではなく**選択が持つ**
+(`selection.activeMarks`)。Wordgard の `activeMarks` と同じ置き場所で、
+選択を動かせば自然に消える。
 
 ### 修復 (fitChange)
 

@@ -3,7 +3,7 @@ import { handleBeforeInput } from "../input/beforeinput";
 import { handleKeyDown } from "../input/keymap";
 import { PointerSelection } from "../input/pointer";
 import type { EditorState } from "../state/state";
-import type { Transaction } from "../state/transaction";
+import { Transaction, type TransactionSpec } from "../state/transaction";
 import { BlockView } from "./block-view";
 import type { InlineDecoration } from "./decoration";
 import { readDOMSelection, writeDOMSelection } from "./dom-selection";
@@ -61,13 +61,12 @@ export class EditorView {
     return result;
   }
 
-  dispatch = (tr: Transaction): void => {
+  /** 更新の指定でも、組み立て済みのトランザクションでも受ける */
+  dispatch = (input: TransactionSpec | Transaction): void => {
     if (this.destroyed) return;
-    if (this.props.dispatchTransaction) {
-      this.props.dispatchTransaction.call(this, tr);
-    } else {
-      this.updateState(this.state.apply(tr));
-    }
+    const tr = input instanceof Transaction ? input : this.state.update(input);
+    if (this.props.dispatchTransaction) this.props.dispatchTransaction.call(this, tr);
+    else this.updateState(tr.state);
   };
 
   updateState(state: EditorState): void {
@@ -159,7 +158,7 @@ export class EditorView {
     if (!this.dom.contains(document.activeElement)) return;
     const selection = readDOMSelection(this);
     if (!selection || selection.eq(this.state.selection)) return;
-    this.dispatch(this.state.tr.setSelection(selection));
+    this.dispatch({ selection, userEvent: "select" });
   };
 
   destroy(): void {
