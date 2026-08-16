@@ -1,9 +1,11 @@
-import { Mark, type Plot, Pos, type Schema } from "../doc";
-import { Mapping } from "./mapping";
+import { type Assoc, ChangeSet, Mark, type Plot, Pos, type Schema } from "../doc";
 import { JoinBlockStep, MarkStep, ReplaceTextStep, SplitBlockStep, type Step } from "./step";
 
 /**
  * ステップを積んでドキュメントを書き換えていく器。
+ *
+ * 積んだ操作は {@link ChangeSet} 1 個に合成されていく。位置の写像も、
+ * どこが変わったかも、この 1 個から読める。
  *
  * ステップを適用するたびにスキーマの検査を通す。検査済みのノードは Schema 側の
  * WeakSet に覚えられるので、変わっていない部分は見直されない。
@@ -14,24 +16,43 @@ import { JoinBlockStep, MarkStep, ReplaceTextStep, SplitBlockStep, type Step } f
 export class Transform {
   doc: Plot;
   readonly steps: Step[] = [];
-  readonly mapping = new Mapping();
+  /** ステップごとの変更。部分的な写像に使う。 */
+  readonly stepChanges: ChangeSet[] = [];
+  changes: ChangeSet;
 
   constructor(
     readonly schema: Schema,
     doc: Plot,
   ) {
     this.doc = doc;
+    this.changes = ChangeSet.empty(doc.contentLength);
   }
 
   get docChanged(): boolean {
     return this.steps.length > 0;
   }
 
+  /** 位置を今の doc の座標に写す */
+  map(pos: number, assoc: Assoc = 1): number {
+    return this.changes.mapPos(pos, assoc);
+  }
+
+  /** from 番目のステップから先だけで写す */
+  mapFrom(pos: number, from: number, assoc: Assoc = 1): number {
+    let result = pos;
+    for (let i = from; i < this.stepChanges.length; i++) {
+      result = this.stepChanges[i].mapPos(result, assoc);
+    }
+    return result;
+  }
+
   step(step: Step): this {
-    const next = step.apply(this.doc);
+    const changes = step.getChanges(this.doc);
+    const next = changes.apply(this.doc);
     this.schema.validate(next);
     this.steps.push(step);
-    this.mapping.appendMap(step.getMap());
+    this.stepChanges.push(changes);
+    this.changes = this.changes.compose(changes);
     this.doc = next;
     return this;
   }
@@ -44,7 +65,7 @@ export class Transform {
       return this.step(new ReplaceTextStep(from, to, text, marks));
     }
     this.deleteRange(from, to);
-    return this.insertText(this.mapping.map(from, 1), text, marks);
+    return this.insertText(this.map(from, 1), text, marks);
   }
 
   insertText(pos: number, text: string, marks: Mark.Set = Mark.none): this {
@@ -81,7 +102,7 @@ export class Transform {
     if (endOfFirst > from) this.step(new ReplaceTextStep(from, endOfFirst, "", Mark.none));
 
     // 2. 最後のブロックの先頭を削る
-    const mappedTo = this.mapping.map(to, -1);
+    const mappedTo = this.map(to, -1);
     const $mappedTo = Pos.resolve(this.doc, mappedTo);
     const startOfLast = $mappedTo.start();
     if (mappedTo > startOfLast) {
@@ -91,7 +112,7 @@ export class Transform {
     // 3. 間のブロックを空にしつつ、順に結合していく
     const joins = $to.index(0) - $from.index(0);
     for (let i = 0; i < joins; i++) {
-      const at = this.mapping.map(from, 1);
+      const at = this.map(from, 1);
       const $at = Pos.resolve(this.doc, at);
       const boundary = $at.after($at.depth);
       if (i < joins - 1) {

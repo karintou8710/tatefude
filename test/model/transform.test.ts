@@ -17,8 +17,8 @@ describe("Transform", () => {
   it("挿入した位置より後ろの位置が写像される", () => {
     const t = tr(p("abc"));
     t.replaceWithText(2, 2, "XY");
-    expect(t.mapping.map(4, 1)).toBe(6);
-    expect(t.mapping.map(1, 1)).toBe(1);
+    expect(t.changes.mapPos(4, 1)).toBe(6);
+    expect(t.changes.mapPos(1, 1)).toBe(1);
   });
 
   it("ブロックを割る", () => {

@@ -572,7 +572,6 @@ export const EmphasisDots = Mark.define("EmphasisDots", {
 
 Wordgard にあって、雛形では省いたもの:
 
-- `ChangeSet` / `Slice` / `Token` — 変更の表現は 4 つのステップのままにしている (§11)
 - `parse` / `serialize` (HTML ↔ doc) — Shape に parse 側を足すのは M1
 - `Schema.Override` (スキーマごとの関係の上書き)
 - 集合値のマーク (`Mark.Spec.set`)、`Node.Role` の実利用
@@ -622,5 +621,68 @@ export const compositionField = Field.define<CompositionState>({
   読まれたときに計算してメモ化するだけ。CodeMirror のスロット割り当てと再計算の
   最小化は入れていない
 - **`Compartment` (構成の差し替え) と優先度 (`Prec`) が無い**
-- **変更の表現がステップ列のまま。** `state.update({changes})` のような宣言的な
-  トランザクション指定ではなく、`tr.replaceWithText(...)` と積んでいく形
+- **トランザクションの指定が宣言的ではない。** `state.update({changes})` ではなく
+  `tr.replaceWithText(...)` と積んでいく形 (変更の表現自体は §12 の ChangeSet)
+- **OT (`transform`) を入れていない。** 共同編集をやる段で足す
+
+---
+
+## 12. 変更の表現 (ChangeSet)
+
+ステップは「何をしたいか」を型で表す層で、**実際の変更は {@link ChangeSet} に落として
+適用する**。位置の写像も合成も ChangeSet 側の仕事で、`StepMap` / `Mapping` は無くなった。
+
+```
+sections: [2, -1,  2, 1,  6, -1]
+          「2 そのまま、2 を 1 に置換、6 そのまま」
+inserted: [null, Slice, null]
+```
+
+ツリーは**トークンの並び**に線形化する (`doc/slice.ts`)。
+
+```ts
+type Token = Node | Plot.Tag | typeof Close
+//           ノード  plot の開き   plot の閉じ
+```
+
+閉じトークンに識別子は無く、そのとき開いている plot を閉じるだけ。おかげで
+
+- **ブロックの分割** = `[Close, Open(tag)]` の挿入
+- **ブロックの結合** = 境界の 2 トークンの削除
+- **ブロックを跨ぐ削除** = 閉じと開きが 1 つずつ消えるので、自然に結合になる
+
+と、構造の操作がすべて「トークンの挿入・削除」に収まる。
+
+### ステップとの関係
+
+各ステップは `getChanges(doc): ChangeSet` を返し、`Transform` はそれを合成して 1 個の
+ChangeSet を持つ。ステップは残っているので、`SplitBlockStep` を見れば「分割」だと分かる
+(意味が型に残る) 一方、変更の表現は合成できる 1 個の値になっている。
+
+### 修復 (fitChange)
+
+`fitChange(schema, doc, {from, to, insert})` は、素朴な置換の指定を**木として成立する
+変更**に直してから ChangeSet にする。直すのは 2 つ。
+
+1. **釣り合い** — 置換のあと、開いている深さが `to` の時点の深さと一致すること
+2. **スキーマ** — 置けない要素は、外側の plot を閉じてから置く / 既定のブロックで包む /
+   それでも駄目なら落とす
+
+Wordgard の `ChangeFitter` に当たるが、費用の比較による探索と、元の文脈への同期は無い
+(包むのは既定ブロックの 1 段だけ)。
+
+### 合成についての注意
+
+**合成すると途中の区切りが失われる**ので、変更に掛かった位置については
+`a.compose(b).mapPos(p)` と `b.mapPos(a.mapPos(p))` は一致しない (CodeMirror と同じ性質)。
+一致が保証されるのは、変わらなかった区間の中だけ。
+
+この性質と、合成・逆・適用の整合は性質テストで押さえている
+(`test/model/change.test.ts`)。ランダムな操作列を 300 回積んで、
+
+- 合成した変更を最初の doc に当てた結果 == 最後の doc
+- 合成した変更の逆で最初の doc に戻る
+- 変わらなかった区間の位置はずれない
+- 写像は単調で範囲に収まる
+
+を確かめている。実際この 4 本が、書いた直後の `compose` のバグを 3 つ捕まえた。

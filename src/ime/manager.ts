@@ -122,7 +122,7 @@ export class EditContextManager {
 
     if (event.text.includes("\n")) {
       // 複数ブロックに割れる場合は、挿入し終わった位置にキャレットを置く
-      const caret = tr.mapping.map(to, 1);
+      const caret = tr.map(to, 1);
       tr.setSelection(TextSelection.near(tr.doc, caret, 1));
     } else {
       const blockNode = tr.doc.nodeAt(block.from);

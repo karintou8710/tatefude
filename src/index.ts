@@ -12,10 +12,14 @@ export {
   type Attributes,
   appendContent,
   buildTextblockMap,
+  ChangeSet,
+  type ChangeSpec,
+  Close,
   contentLength,
   cutContent,
   Elt,
   findIndex,
+  fitChange,
   joinText,
   Leaf,
   Mark,
@@ -25,6 +29,8 @@ export {
   Schema,
   SchemaError,
   type Shape,
+  Slice,
+  sliceDoc,
   TextblockMap,
   ValidationError,
 } from "./doc";
@@ -67,8 +73,8 @@ export {
   schemaElement,
 } from "./state/state";
 export { Annotation, Transaction } from "./state/transaction";
-export { Mapping, StepMap } from "./transform/mapping";
 export {
+  applyStep,
   JoinBlockStep,
   MarkStep,
   ReplaceTextStep,

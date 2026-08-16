@@ -34,7 +34,7 @@ export const compositionField: Field<CompositionState> = Field.define<Compositio
       return { decorations: DecorationSet.empty };
     }
     if (tr.docChanged && value.decorations.decorations.length) {
-      return { decorations: value.decorations.map(tr.mapping) };
+      return { decorations: value.decorations.map(tr.changes) };
     }
     return value;
   },

@@ -12,7 +12,7 @@ export const deleteSelection: Command = (state, dispatch) => {
   if (empty) return false;
   if (dispatch) {
     const tr = state.tr.deleteRange(from, to);
-    tr.setSelection(TextSelection.near(tr.doc, tr.mapping.map(from, -1)));
+    tr.setSelection(TextSelection.near(tr.doc, tr.map(from, -1)));
     dispatch(tr);
   }
   return true;
@@ -25,7 +25,7 @@ export const splitBlock: Command = (state, dispatch) => {
   if (dispatch) {
     const tr = state.tr;
     if (!empty) tr.deleteRange(from, to);
-    const at = tr.mapping.map(from, 1);
+    const at = tr.map(from, 1);
     tr.splitBlock(at);
     // 分割で入る閉じ + 開きの 2 つ分だけ先が新しいブロックの中身
     tr.setSelection(TextSelection.create(tr.doc, at + 2));

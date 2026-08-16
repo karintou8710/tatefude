@@ -1,21 +1,18 @@
-import { appendContent, cutContent, Leaf, type Mark, type Node, type Plot, Pos } from "../doc";
-import { StepMap } from "./mapping";
-
-export interface Step {
-  apply(doc: Plot): Plot;
-  getMap(): StepMap;
-}
+import { ChangeSet, Close, Leaf, type Mark, type Plot, Pos, Slice, sliceDoc } from "../doc";
 
 /**
- * $pos の depth にある plot を replacement で差し替えた doc を返す。
- * 祖先を根まで作り直す。
+ * ドキュメントへの操作。
+ *
+ * ステップは「何をしたいか」を型で表す層で、**実際の変更は
+ * {@link ChangeSet} に落として適用する**。位置の写像も合成も ChangeSet 側の仕事。
  */
-export function replaceNodeAtDepth($pos: Pos, depth: number, replacement: Plot): Plot {
-  let node = replacement;
-  for (let d = depth; d > 0; d--) {
-    node = $pos.node(d - 1).replaceChildren($pos.index(d - 1), 1, [node]);
-  }
-  return node;
+export interface Step {
+  /** この操作を、その doc に対する変更として表す */
+  getChanges(doc: Plot): ChangeSet;
+}
+
+export function applyStep(step: Step, doc: Plot): Plot {
+  return step.getChanges(doc).apply(doc);
 }
 
 /** 1 つのテキストブロックの中で、[from, to) を text で置き換える */
@@ -27,27 +24,17 @@ export class ReplaceTextStep implements Step {
     readonly marks: Mark.Set,
   ) {}
 
-  apply(doc: Plot): Plot {
+  getChanges(doc: Plot): ChangeSet {
     const $from = Pos.resolve(doc, this.from);
     const $to = Pos.resolve(doc, this.to);
     if ($from.parent !== $to.parent) {
       throw new RangeError("ReplaceTextStep は 1 つのブロックの中でしか使えない");
     }
-    const parent = $from.parent;
-    if (!parent.isTextblock) {
+    if (!$from.parent.isTextblock) {
       throw new RangeError("ReplaceTextStep の対象がテキストブロックではない");
     }
-    const start = $from.start();
-    const inserted: readonly Node[] = this.text ? [Leaf.text(this.text, this.marks)] : [];
-    const content = appendContent(
-      appendContent(cutContent(parent.content, 0, this.from - start), inserted),
-      cutContent(parent.content, this.to - start),
-    );
-    return replaceNodeAtDepth($from, $from.depth, parent.withContent(content));
-  }
-
-  getMap(): StepMap {
-    return new StepMap([this.from, this.to - this.from, this.text.length]);
+    const insert = this.text ? Slice.of([Leaf.text(this.text, this.marks)]) : Slice.empty;
+    return ChangeSet.of({ from: this.from, to: this.to, insert }, doc.contentLength);
   }
 }
 
@@ -55,26 +42,14 @@ export class ReplaceTextStep implements Step {
 export class SplitBlockStep implements Step {
   constructor(readonly pos: number) {}
 
-  apply(doc: Plot): Plot {
+  getChanges(doc: Plot): ChangeSet {
     const $pos = Pos.resolve(doc, this.pos);
     const parent = $pos.parent;
     if (!parent.isTextblock)
       throw new RangeError("SplitBlockStep の対象がテキストブロックではない");
-    const offset = this.pos - $pos.start();
-    const before = parent.withContent(cutContent(parent.content, 0, offset));
-    // 後ろ側は keepOnSplit のマークだけを引き継ぐ
-    const after = parent.tag.split().create(cutContent(parent.content, offset));
-    const grandDepth = $pos.depth - 1;
-    const grand = $pos.node(grandDepth);
-    return replaceNodeAtDepth(
-      $pos,
-      grandDepth,
-      grand.replaceChildren($pos.index(grandDepth), 1, [before, after]),
-    );
-  }
-
-  getMap(): StepMap {
-    return new StepMap([this.pos, 0, 2]);
+    // 閉じてから、後ろ側のタグで開き直す
+    const insert = Slice.of([Close, parent.tag.split()]);
+    return ChangeSet.of({ from: this.pos, to: this.pos, insert }, doc.contentLength);
   }
 }
 
@@ -82,7 +57,7 @@ export class SplitBlockStep implements Step {
 export class JoinBlockStep implements Step {
   constructor(readonly pos: number) {}
 
-  apply(doc: Plot): Plot {
+  getChanges(doc: Plot): ChangeSet {
     const $pos = Pos.resolve(doc, this.pos);
     const parent = $pos.parent;
     const index = $pos.index($pos.depth);
@@ -94,13 +69,11 @@ export class JoinBlockStep implements Step {
     if (!before.isPlot || !after.isPlot || !before.isTextblock || !after.isTextblock) {
       throw new RangeError("JoinBlockStep はテキストブロック同士でしか使えない");
     }
-    const joined = before.withContent(appendContent(before.content, after.content));
-    return replaceNodeAtDepth($pos, $pos.depth, parent.replaceChildren(index - 1, 2, [joined]));
-  }
-
-  getMap(): StepMap {
-    // 前のブロックの閉じと後ろのブロックの開きが消える
-    return new StepMap([this.pos - 1, 2, 0]);
+    // 前のブロックの閉じと、後ろのブロックの開きを取り除く
+    return ChangeSet.of(
+      { from: this.pos - 1, to: this.pos + 1, insert: Slice.empty },
+      doc.contentLength,
+    );
   }
 }
 
@@ -113,29 +86,25 @@ export class MarkStep implements Step {
     readonly add: boolean,
   ) {}
 
-  apply(doc: Plot): Plot {
+  getChanges(doc: Plot): ChangeSet {
     const $from = Pos.resolve(doc, this.from);
     const $to = Pos.resolve(doc, this.to);
     if ($from.parent !== $to.parent) {
       throw new RangeError("MarkStep は 1 つのブロックの中でしか使えない");
     }
-    const parent = $from.parent;
-    const start = $from.start();
-    const middle = cutContent(parent.content, this.from - start, this.to - start).map((node) =>
-      node.isInline
-        ? node.withMarks(
-            this.add ? this.mark.addToSet(node.marks) : this.mark.removeFromSet(node.marks),
-          )
-        : node,
+    const current = sliceDoc(doc, this.from, this.to);
+    const marked = current.tokens.map((token) => {
+      if (typeof token === "object" && "isInline" in token && token.isInline) {
+        const marks = this.add
+          ? this.mark.addToSet(token.marks)
+          : this.mark.removeFromSet(token.marks);
+        return token.withMarks(marks);
+      }
+      return token;
+    });
+    return ChangeSet.of(
+      { from: this.from, to: this.to, insert: Slice.of(marked) },
+      doc.contentLength,
     );
-    const content = appendContent(
-      appendContent(cutContent(parent.content, 0, this.from - start), middle),
-      cutContent(parent.content, this.to - start),
-    );
-    return replaceNodeAtDepth($from, $from.depth, parent.withContent(content));
-  }
-
-  getMap(): StepMap {
-    return StepMap.empty;
   }
 }

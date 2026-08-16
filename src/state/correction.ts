@@ -1,5 +1,4 @@
 import type { Node, Plot } from "../doc";
-import type { Mapping } from "../transform/mapping";
 import type { Extension } from "./facet";
 import type { EditorState } from "./state";
 import { Transaction } from "./transaction";
@@ -34,7 +33,8 @@ export interface CorrectionSpec {
 export function correction(spec: CorrectionSpec): Extension {
   return Transaction.extender.of((tr) => {
     if (!tr.docChanged) return;
-    const ranges = changedRanges(tr.mapping);
+    const ranges: { from: number; to: number }[] = [];
+    tr.changes.iterChanges((_fromA, _toA, fromB, toB) => ranges.push({ from: fromB, to: toB }));
     if (!ranges.length) return;
     const schema = tr.schema;
     const seen = new Set<Plot>();
@@ -59,24 +59,4 @@ export function correction(spec: CorrectionSpec): Extension {
 
     walk(tr.doc, 0);
   });
-}
-
-/** 変更のあった範囲を、変更後の doc の座標で返す */
-function changedRanges(mapping: Mapping): { from: number; to: number }[] {
-  const result: { from: number; to: number }[] = [];
-  mapping.maps.forEach((map, index) => {
-    for (let i = 0; i < map.ranges.length; i += 3) {
-      const start = map.ranges[i];
-      const newSize = map.ranges[i + 2];
-      let from = start;
-      let to = start + newSize;
-      // 後続の写像を通して、今の doc の座標に直す
-      for (let later = index + 1; later < mapping.maps.length; later++) {
-        from = mapping.maps[later].map(from, -1);
-        to = mapping.maps[later].map(to, 1);
-      }
-      result.push({ from, to });
-    }
-  });
-  return result;
 }

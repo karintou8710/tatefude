@@ -1,6 +1,5 @@
-import type { Node, Plot } from "../doc";
+import type { ChangeSet, Node, Plot } from "../doc";
 import { Pos } from "../doc";
-import type { Mapping } from "../transform/mapping";
 
 /**
  * 選択の基底。Wordgard に倣って、テキスト選択とノード選択を別の型にし、
@@ -42,7 +41,7 @@ export abstract class Selection {
     );
   }
 
-  abstract map(doc: Plot, mapping: Mapping): Selection;
+  abstract map(doc: Plot, changes: ChangeSet): Selection;
 
   toJSON(): { type: string; anchor: number; head: number } {
     return { type: this.constructor.name, anchor: this.anchor, head: this.head };
@@ -65,10 +64,10 @@ export abstract class Selection {
 
 /** テキストの範囲 (キャレットを含む) */
 export class TextSelection extends Selection {
-  map(doc: Plot, mapping: Mapping): TextSelection {
+  map(doc: Plot, changes: ChangeSet): TextSelection {
     return new TextSelection(
-      resolveNear(doc, mapping.map(this.anchor, 1)),
-      resolveNear(doc, mapping.map(this.head, 1)),
+      resolveNear(doc, changes.mapPos(this.anchor, 1)),
+      resolveNear(doc, changes.mapPos(this.head, 1)),
     );
   }
 
@@ -94,8 +93,8 @@ export class NodeSelection extends Selection {
     return new NodeSelection(Pos.resolve(doc, pos), Pos.resolve(doc, pos + node.length), node);
   }
 
-  map(doc: Plot, mapping: Mapping): Selection {
-    const pos = mapping.map(this.anchor, 1);
+  map(doc: Plot, changes: ChangeSet): Selection {
+    const pos = changes.mapPos(this.anchor, 1);
     const node = doc.nodeAt(pos);
     // ノードが残っていなければテキスト選択に落とす
     if (!node?.eq(this.node)) return Selection.near(doc, pos);

@@ -1,5 +1,4 @@
 import type { Mark } from "../doc";
-import { Mapping } from "../transform/mapping";
 import type { Step } from "../transform/step";
 import { Transform } from "../transform/transform";
 import { Facet } from "./facet";
@@ -31,7 +30,10 @@ export class Transaction extends Transform {
   /** ステップの分だけ写像した選択 */
   get selection(): Selection {
     if (this.curSelectionFor < this.steps.length) {
-      const rest = new Mapping(this.mapping.maps.slice(this.curSelectionFor));
+      let rest = this.stepChanges[this.curSelectionFor];
+      for (let i = this.curSelectionFor + 1; i < this.stepChanges.length; i++) {
+        rest = rest.compose(this.stepChanges[i]);
+      }
       this.curSelection = this.curSelection.map(this.doc, rest);
       this.curSelectionFor = this.steps.length;
     }

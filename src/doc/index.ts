@@ -5,7 +5,9 @@
 // - Shape がノードとマークの DOM での姿を決める
 // - Schema が「何をどこに置けるか」を決め、validate で実際に検査する
 
+export { type Assoc, ChangeBuilder, ChangeSet, type ChangeSpec } from "./change";
 export { SchemaError, ValidationError } from "./error";
+export { fitChange } from "./fit";
 export { Mark } from "./mark";
 // Node は型の別名であると同時に Group / Role を持つ名前空間なので、値として再輸出する
 export {
@@ -21,4 +23,16 @@ export {
 export { Pos } from "./pos";
 export { Schema } from "./schema";
 export { type Attributes, Elt, type Shape } from "./shape";
+export {
+  buildPlot,
+  Close,
+  type CloseToken,
+  isClose,
+  isOpen,
+  Slice,
+  sliceDoc,
+  stackAt,
+  type Token,
+  tokenLength,
+} from "./slice";
 export { ATOM_CHAR, buildTextblockMap, TextblockMap } from "./textblock";

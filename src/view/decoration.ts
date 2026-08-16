@@ -1,4 +1,4 @@
-import type { Mapping } from "../transform/mapping";
+import type { ChangeSet } from "../doc";
 
 /** doc 位置の範囲に見た目だけを足す。IME 変換中の下線がこれで描かれる。 */
 export interface InlineDecoration {
@@ -23,13 +23,13 @@ export class DecorationSet {
     return this.decorations.filter((d) => d.from < to && d.to > from);
   }
 
-  map(mapping: Mapping): DecorationSet {
+  map(changes: ChangeSet): DecorationSet {
     if (!this.decorations.length) return this;
     return DecorationSet.create(
       this.decorations.map((d) => ({
         ...d,
-        from: mapping.map(d.from, -1),
-        to: mapping.map(d.to, 1),
+        from: changes.mapPos(d.from, -1),
+        to: changes.mapPos(d.to, 1),
       })),
     );
   }
