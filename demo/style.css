@@ -27,6 +27,13 @@ main {
   align-items: start;
 }
 
+header .controls {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  margin: 0 0 16px;
+}
+
 .editor-pane {
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -37,6 +44,18 @@ main {
   min-height: 240px;
   line-height: 1.9;
   font-size: 16px;
+}
+
+/* 縦書き。writing-mode は継承するのでペインに掛ければエディタにも届く。
+   vertical-rl では height が行の長さ (インライン方向)、width が行の積み方向。 */
+.editor-pane.vertical {
+  writing-mode: vertical-rl;
+  overflow-x: auto;
+}
+
+.editor-pane.vertical .ecw-editor {
+  min-height: 0;
+  height: 380px;
 }
 
 /* EditContext を付けたブロックは editable 扱いになる。フォーカスリングは自前で消す。 */

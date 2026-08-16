@@ -1,6 +1,6 @@
 import { TextSelection } from "../state/selection";
 import type { BlockView } from "../view/block-view";
-import { caretPointFromCoords, domPointToBlockOffset } from "../view/coords";
+import { caretPointFromCoords, domPointToBlockOffset, writingModeOf } from "../view/coords";
 import type { EditorView } from "../view/view";
 
 /**
@@ -84,18 +84,27 @@ export function posAtCoords(view: EditorView, x: number, y: number): number | nu
       );
     }
   }
-  const nearest = nearestBlock(view, y);
+  const nearest = nearestBlock(view, x, y);
   if (!nearest) return null;
+  // ブロックの外を指しているので、ブロック方向で手前か奥かだけを見る
+  const { vertical, blockForwardIsPositive } = writingModeOf(nearest.dom);
   const box = nearest.dom.getBoundingClientRect();
-  return y < box.top ? nearest.contentFrom : nearest.contentTo;
+  const beforeStart = vertical ? x < box.left : y < box.top;
+  const atBlockStart = blockForwardIsPositive ? beforeStart : !beforeStart;
+  return atBlockStart ? nearest.contentFrom : nearest.contentTo;
 }
 
-function nearestBlock(view: EditorView, y: number): BlockView | null {
+/** ブロックは書字方向に積まれるので、距離もその軸で測る */
+function nearestBlock(view: EditorView, x: number, y: number): BlockView | null {
   let found: BlockView | null = null;
   let best = Number.POSITIVE_INFINITY;
   for (const block of view.blocks) {
     const box = block.dom.getBoundingClientRect();
-    const distance = y < box.top ? box.top - y : y > box.bottom ? y - box.bottom : 0;
+    const vertical = writingModeOf(block.dom).vertical;
+    const coord = vertical ? x : y;
+    const start = vertical ? box.left : box.top;
+    const end = vertical ? box.right : box.bottom;
+    const distance = coord < start ? start - coord : coord > end ? coord - end : 0;
     if (distance < best) {
       best = distance;
       found = block;

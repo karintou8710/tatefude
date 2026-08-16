@@ -67,6 +67,9 @@ EditContext が今持っている文字列なので、EditContext 自身が書�
 | ブロックを跨ぐドラッグ選択 | `mousedown` + `mousemove` を自前で追う |
 | 選択の描画 | ネイティブの選択は透明にして CSS Custom Highlight で塗る |
 
+矢印キーの軸は書字方向で入れ替わる (縦書きでは上下が行の中、左右が行の跨ぎ)。
+`writing-mode` を読んで論理方向に直してから判定している。
+
 ## 今できること (M0)
 
 - 段落 + `Strong` / `Emphasis` / `EmphasisDots` (傍点。属性で描くマーク)
@@ -82,6 +85,7 @@ EditContext が今持っている文字列なので、EditContext 自身が書�
   エディタの中ではネイティブの選択描画を透明にして、model の選択を
   CSS Custom Highlight API で塗っている
 - `Mod-b` / `Mod-i`
+- 縦書き (`writing-mode: vertical-rl`)。デモの上部で切り替えられる
 - デモのデバッグパネル (doc / 各ブロックのバッファ / イベント列)
 
 選択の色は `::highlight(ecw-selection)` を上書きすれば変えられる。

@@ -43,6 +43,18 @@ if (supportEl) {
     : "EditContext: この ブラウザには無い (Chromium 121+ が必要)";
 }
 
+const pane = document.querySelector<HTMLElement>("#editor-pane");
+for (const input of document.querySelectorAll<HTMLInputElement>('input[name="writing-mode"]')) {
+  input.addEventListener("change", () => {
+    if (!input.checked) return;
+    pane?.classList.toggle("vertical", input.value === "vertical");
+    // 書字方向が変わると矩形が全部変わるので、EditContext に渡した bounds を取り直す
+    view.dispatch(view.state.tr.setSelection(view.state.selection));
+    view.focus();
+    renderDebug();
+  });
+}
+
 const events: string[] = [];
 
 function pushEvent(type: string, detail: unknown): void {

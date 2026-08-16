@@ -10,9 +10,13 @@
     <header>
       <h1>editcontext-wysiwyg</h1>
       <p id="support"></p>
+      <div class="controls">
+        <label><input type="radio" name="writing-mode" value="horizontal" checked /> 横書き</label>
+        <label><input type="radio" name="writing-mode" value="vertical" /> 縦書き (vertical-rl)</label>
+      </div>
     </header>
     <main>
-      <section class="editor-pane">
+      <section class="editor-pane" id="editor-pane">
         <div id="editor"></div>
       </section>
       <aside class="debug-pane">

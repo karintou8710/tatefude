@@ -99,10 +99,41 @@ export function characterRects(blockDOM: HTMLElement, from: number, to: number):
   return rects;
 }
 
-/** キャレットが視覚的な最初 / 最後の行にいるか (ブロックを跨ぐ上下移動の判定用) */
+export interface WritingModeInfo {
+  /** インライン方向が縦か (vertical-rl / vertical-lr / sideways-*) */
+  vertical: boolean;
+  /** ブロック方向の「次」が座標の正方向か。vertical-rl だけ負方向 (左へ積む) */
+  blockForwardIsPositive: boolean;
+}
+
+export function writingModeOf(dom: HTMLElement): WritingModeInfo {
+  const mode = getComputedStyle(dom).writingMode;
+  const vertical = mode.startsWith("vertical") || mode.startsWith("sideways");
+  return {
+    vertical,
+    blockForwardIsPositive: !(mode === "vertical-rl" || mode === "sideways-rl"),
+  };
+}
+
+/**
+ * キャレットが視覚的な最初 / 最後の行にいるか (行を跨ぐ移動の判定用)。
+ *
+ * `direction` は論理方向 (-1 = 前の行へ、1 = 次の行へ)。縦書きでは行が横に積まれ、
+ * vertical-rl では「次」が画面の左になるので、物理軸と向きを書字方向から決める。
+ */
 export function isOnEdgeLine(blockDOM: HTMLElement, offset: number, direction: -1 | 1): boolean {
+  const { vertical, blockForwardIsPositive } = writingModeOf(blockDOM);
   const caret = caretRectAt(blockDOM, offset);
   const box = blockDOM.getBoundingClientRect();
-  const tolerance = Math.max(2, caret.height / 2);
-  return direction < 0 ? caret.top - box.top <= tolerance : box.bottom - caret.bottom <= tolerance;
+
+  // ブロック方向 = インライン方向と直交する軸。キャレットのその軸方向の太さが行の高さ。
+  const caretStart = vertical ? caret.left : caret.top;
+  const caretEnd = vertical ? caret.right : caret.bottom;
+  const boxStart = vertical ? box.left : box.top;
+  const boxEnd = vertical ? box.right : box.bottom;
+  const lineSize = vertical ? caret.width : caret.height;
+  const tolerance = Math.max(2, lineSize / 2);
+
+  const physical = blockForwardIsPositive ? direction : -direction;
+  return physical < 0 ? caretStart - boxStart <= tolerance : boxEnd - caretEnd <= tolerance;
 }
