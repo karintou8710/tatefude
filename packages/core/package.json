@@ -1,0 +1,38 @@
+{
+  "name": "tatefude",
+  "version": "0.0.0",
+  "description": "EditContext API を土台にした ProseMirror ライクな RTE ライブラリ",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --project node",
+    "test:browser": "vitest run --project browser",
+    "test:all": "vitest run"
+  },
+  "devDependencies": {
+    "@vitest/browser": "^4.1.10",
+    "@vitest/browser-playwright": "^4.1.10",
+    "playwright": "^1.61.1",
+    "tsdown": "^0.22.14",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.10",
+    "vitest": "^4.1.10"
+  }
+}

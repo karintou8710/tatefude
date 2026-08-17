@@ -1,0 +1,6 @@
+# packages/ が公開するもの、demo はそれを workspace 越しに読む利用側。
+# デモが `tatefude` / `tatefude-react` という名前で import することで、
+# 公開 API だけで組めているかが自然に検査される (相対パスで src の奥に入れなくなる)。
+packages:
+  - packages/*
+  - demo

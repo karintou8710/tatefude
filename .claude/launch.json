@@ -5,7 +5,8 @@
       "name": "demo",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev"],
-      "port": 5180
+      "port": 5180,
+      "autoPort": true
     }
   ]
 }

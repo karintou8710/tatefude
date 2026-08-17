@@ -1,0 +1,10 @@
+/* 小説。字下げは doc 側の全角空白でやっているので、ここでは組みだけ整える */
+.novel :global(.tf-editor) {
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+  font-size: 17px;
+  line-height: 2.1;
+}
+
+.novel :global([data-tf-textblock]) {
+  margin: 0;
+}

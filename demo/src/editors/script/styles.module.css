@@ -1,0 +1,131 @@
+/* 台本。全体の上に横罫を渡し、柱だけ左右の縦罫がその上へ突き出て番号の箱になる。
+   縦書きでは inline 軸が上下・block 軸が右→左なので、
+   - border-inline-start = そのブロックの上端 (箱の天)
+   - border-block        = そのブロックの左右の縦罫
+   - padding-inline-start = 行頭 (上) からの字下げ
+   番号は counter で出すので DOM のテキストには入らない。 */
+.script {
+  --band: 52px;
+  /* 人物名の枠。セリフの開始位置をここで決める */
+  --speaker: 8em;
+  /* ト書きはセリフ本文より深く入れる。主はセリフなので、ト書きが一段引っ込む */
+  --action: calc(var(--speaker) + 2em);
+  /* 行の長さは紙いっぱい。EditorPage 側の既定 (420px) を変数で上書きする */
+  --line-length: 100%;
+  /* 用紙は**高さ基準**で決める。aspect-ratio は幅 ÷ 高さなので、grid の stretch で幅が
+     伸びるたび高さがその 1.15 倍に膨らみ、画面に収まらない縦長の紙になる。
+     縦書きは行の長さ = 紙の高さなので、高さを決めて幅を比から出すのが自然。
+     justify-self で stretch を切らないと幅が auto にならず、比が効かない。 */
+  justify-self: center;
+  height: min(78vh, 780px);
+  aspect-ratio: 0.87;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  box-shadow: 2px 2px 8px rgb(0 0 0 / 0.14);
+  /* 紙からはみ出した分は切らずに送る。縦書きなので溢れるのは左 = 横スクロール */
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.script :global(.tf-editor) {
+  counter-reset: scene;
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 6px 14px 14px;
+  position: relative;
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+  font-size: 16px;
+  line-height: 2;
+  color: #223;
+}
+
+/* 全体に渡す横罫。柱の縦罫がこの上へ突き出る */
+.script :global(.tf-editor)::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: var(--band);
+  inset-block: 0;
+  border-inline-start: 1px solid #111;
+}
+
+/* 本文 (セリフ・ト書き) は横罫の下から始める */
+.script :global([data-tf-textblock]) {
+  margin: 0;
+  padding-inline-start: var(--band);
+}
+
+/* 柱。左右の縦罫と上端で、横罫との間に番号の箱ができる */
+.script :global(.script-scene-heading) {
+  position: relative;
+  font-size: inherit;
+  font-weight: normal;
+  border-block: 1px solid #111;
+  border-inline-start: 1px solid #111;
+  counter-increment: scene;
+}
+
+/* 番号は横組みなので、論理プロパティは使わない。
+   writing-mode を変えると inset-inline-start がこの要素自身の軸で解決され、上ではなく左になる */
+.script :global(.script-scene-heading)::before {
+  content: counter(scene);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--band);
+  display: grid;
+  place-items: center;
+  writing-mode: horizontal-tb;
+  font-size: 14px;
+}
+
+/* シーンの間隔。柱がシーンの始まりなので、柱自身に付ける。先頭の柱は紙の端なので除く。
+   **block 軸 (縦書きでは右→左) に付ける**。inline 軸に付けると柱の開始位置が下へずれ、
+   番号の高さがシーンごとにばらける */
+.script :global(.script-scene-heading):not(:first-child) {
+  margin-block-start: 14px;
+}
+
+/* ト書きは全体を字下げ。padding-inline-start は縦書きでは上なので、
+   折り返した行も同じ位置から始まる = ブロックごと下がる */
+.script :global(.script-action) {
+  padding-inline-start: calc(var(--band) + var(--action));
+}
+
+/* セリフは人物名を頭に出し、折り返しは名前の下へぶら下げる。
+   padding で全体を下げ、text-indent の負値で 1 行目だけ引き戻す。
+   引き戻す量が人物名の枠と同じなので、発話の開始位置は名前の長さに依らず揃う */
+.script :global(.script-dialogue) {
+  padding-inline-start: calc(var(--band) + var(--speaker));
+  text-indent: calc(-1 * var(--speaker));
+}
+
+/* 人物名は 8 文字分の場所を取る。縦書きでは inline 軸が上下なので、
+   inline-size が行に沿った長さ = 名前の場所になる。
+   space-between で名前は行頭・カギ括弧は枠の末尾に寄るので、括弧と発話が離れない。
+   min- にしてあるのは、8 文字を超える名前で編集中の文字を隠さないため (枠が伸びる) */
+.script :global(.script-speaker) {
+  display: inline-flex;
+  justify-content: space-between;
+  min-inline-size: var(--speaker);
+  /* text-indent は継承するので、flex が作る内側のブロックで二重に効く。ここで止める */
+  text-indent: 0;
+}
+
+/* カギ括弧は台本の約束事であって本文ではないので、文字としては持たず CSS で出す。
+   生成内容は DOM のノードではないから、バッファにもキャレットの計算にも入らない */
+.script :global(.script-speaker)::after {
+  content: "「";
+}
+
+.script :global(.script-dialogue)::after {
+  content: "」";
+}
+
+/* キャレットが箱の中にいる印は、人物名では出さない。ルビと違って名前は常に行頭に立つので
+   中にいることが位置で分かる。ハイライトの見た目は**由来元の要素**で上書きできる。
+   消すのはこちらだけ。選択の塗り (tf-selection) まで消すと選んだ範囲が見えなくなる */
+.script :global(.script-speaker)::highlight(tf-inline-active) {
+  background-color: transparent;
+}

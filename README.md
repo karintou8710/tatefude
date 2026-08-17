@@ -1,16 +1,36 @@
-# editcontext-wysiwyg
+# tatefude
 
 EditContext API を土台にした、ProseMirror ライクな RTE ライブラリの雛形。
 contenteditable の DOM 監視・修復を一切持たないことが設計上の主張。
 
-このライブラリのドキュメントモデルは [ProseMirror](https://prosemirror.net/) と
-[Wordgard](https://wordgard.net/) の設計から学んでいます (コードは共有していません)。
-入力層は EditContext を前提に独自に設計しました。
+`packages/core/src/doc/` は [Wordgard](https://wordgard.net/) (MIT) の doc パッケージから
+**派生**しています。`state/history.ts` も同様です。著作権表示と対象ファイルは
+[packages/core/LICENSE](packages/core/LICENSE) の "Third-party code" を参照してください。
 
 ドキュメントモデル (Plot / Leaf / Tag / Shape / クエリベースの Schema)、
 構成の仕組み (facet / extension / annotation / effect / correction)、
-変更の表現 (ChangeSet / Slice / Token / fit) は Wordgard に倣っています。
+変更の表現 (ChangeSet / Slice / Token / fit) は Wordgard 由来で、
+元をたどると CodeMirror 6 の設計です。
 ProseMirror の Step / Transform / storedMarks に当たるものはありません。
+
+**入力層と表示層 (`ime/` `input/` `view/`) は独自の実装です。**
+EditContext を直接駆動し、contenteditable の DOM 監視・修復を一切持ちません。
+縦書き・ルビ・傍点への対応もここに含まれます。
+
+## Acknowledgements
+
+The document model (`packages/core/src/doc/`) and the undo/redo history are **derived
+from [Wordgard](https://wordgard.net/)**, which is MIT licensed. Copyright notices and
+the full list of affected files are in [packages/core/LICENSE](packages/core/LICENSE).
+Wordgard's own `doc` and `state` designs descend from
+[CodeMirror 6](https://codemirror.net/), by the same author.
+
+The input and rendering layers are original work: this library drives
+[EditContext](https://developer.mozilla.org/docs/Web/API/EditContext) directly and holds
+**no contenteditable DOM observation or repair** at all. Vertical writing mode, ruby and
+emphasis dots are part of that layer.
+
+Not affiliated with or endorsed by the Wordgard or ProseMirror projects.
 
 ```ts
 const state = EditorState.create({
@@ -34,12 +54,63 @@ Chromium 121+ 専用。Safari / Firefox には EditContext の実装が無い。
 
 ```bash
 pnpm install
-pnpm dev          # デモ (デバッグパネルつき) http://localhost:5180
+pnpm dev          # デモ http://localhost:5180 (プロジェクトごとに /horizontal /novel /script)
+                  #   PORT=xxxx で上書きできる
 pnpm test         # model / transform / 写像 (node)
 pnpm test:browser # view / EditContext (Chromium 実機)
-pnpm typecheck
+pnpm typecheck    # 全パッケージ + デモ
+pnpm build        # packages/*/dist (tsdown で 1 ファイルに束ねる)
 pnpm lint
 ```
+
+`exports` は開発中は `src/index.ts` を指したまま、**publish 時だけ `publishConfig` が
+`dist/` に差し替える**。デモは常にソースを読むので HMR が効き、配布物は束ねた 1 ファイルに
+なる。ソースの相対 import は拡張子なしなので、束ねずに配ると Node の ESM 解決が通らない。
+
+pnpm workspace になっている。`packages/` が公開するもの、`demo/` がそれを
+**名前で import する利用側**。相対パスで `src/` の奥に入れないので、公開 API
+(`src/index.ts`) だけで組めているかが自然に検査される。
+
+```
+.
+├── pnpm-workspace.yaml
+├── tsconfig.base.json     共有の compilerOptions
+├── packages/
+│   ├── core/              tatefude (依存ゼロ・素の DOM)
+│   │   ├── LICENSE        Third-party code の表示を含む
+│   │   ├── src/ test/ vitest.config.ts tsdown.config.ts
+│   └── react/             tatefude-react (React アダプタ)
+│       └── src/           useEditor / useEditorState / EditorContent
+└── demo/                  利用側
+    ├── index.html
+    ├── package.json / vite.config.ts / tsconfig.json
+    └── src/
+        ├── main.tsx       エントリ (BrowserRouter)
+        ├── App.tsx        ヘッダ + ルート定義
+        ├── global.css     ページ全体と、ライブラリが描くクラスへの指定
+        ├── pages/         ルート 1 つにコンポーネント 1 つ
+        ├── components/    ページが共有するもの (EditorPage / Toolbar / DebugPanel)
+        └── editors/       エディタ 1 つに 1 ディレクトリ
+```
+
+React から使う場合は view のライフサイクルと購読を hook が持つ。
+
+```tsx
+const editor = useEditor({ config: [basicSchema(), history()], doc }, [id]);
+// 読む範囲を selector で決めるので、関係ないキー入力では再描画されない
+const canUndo = useEditorState(editor, (state) => undoDepth(state) > 0);
+
+<EditorContent editor={editor} />;
+```
+
+デモの見た目は **CSS Module** (`*.module.css`)。ただし `.tf-editor` や `[data-tf-*]`、
+スキーマの Shape が付けるクラスはライブラリ側の名前なので、ハッシュ化すると当たらない。
+それらへの指定は `global.css` か、モジュール内の `:global()` に置く。基底は `:where()` で
+詳細度を持たせないので、エディタ固有の書式が注入順に関係なく勝つ。
+エディタ固有の書式は各エディタが `className` として自分で持つ。
+
+Vite はリンク先を prebundle せず `src/*.ts` を個別に配信するので、本体を書き換えると
+デモに HMR で届く。
 
 ブラウザテストの初回は `pnpm exec playwright install chromium` が要る。
 
@@ -80,6 +151,7 @@ EditContext が今持っている文字列なので、EditContext 自身が書�
 | ブロックを跨ぐ選択の削除 | 同上 |
 | Enter | `keydown` → 分割 + 新ブロックへ focus |
 | Mod-b / Mod-i | `keydown` |
+| undo / redo | `keydown` (Mod-z / Mod-Shift-z / Mod-y)。メニューからの取り消しは `beforeinput` の historyUndo |
 | ブロック内のキャレット移動・選択 | ネイティブ (要素が editable なので) |
 | ブロック境界を跨ぐ矢印キー移動 | `keydown` で端を判定して隣のブロックへ focus |
 | ブロックを跨ぐドラッグ選択 | `mousedown` + `mousemove` を自前で追う |
@@ -93,7 +165,8 @@ beforeinput の側で見る。
 
 同じ意図を両方に書くことはしない。keymap に割り当てがあるものは keymap だけ、
 beforeinput にあるのは「キーの割り当てが OS ごとに違うので意図でしか受けられないもの」
-(macOS の Ctrl-H / Ctrl-D / Ctrl-O など) だけ。
+(macOS の Ctrl-H / Ctrl-D / Ctrl-O など) だけ。取り消しだけは例外で、メニューや
+右クリックからキーを伴わずに飛んでくるので両方で受ける。
 
 矢印キーの軸は書字方向で入れ替わる (縦書きでは上下が行の中、左右が行の跨ぎ)。
 `writing-mode` を読んで論理方向に直してから判定している。
@@ -113,18 +186,26 @@ beforeinput にあるのは「キーの割り当てが OS ごとに違うので�
   エディタの中ではネイティブの選択描画を透明にして、model の選択を
   CSS Custom Highlight API で塗っている
 - `Mod-b` / `Mod-i`
+- undo / redo (`Mod-z` / `Mod-Shift-z` / `Mod-y`)。`history()` を config に足すと有効
 - 縦書き (`writing-mode: vertical-rl`)。デモの上部で切り替えられる
 - デモのデバッグパネル (doc / 各ブロックのバッファ / イベント列)
 
-選択の色は `::highlight(ecw-selection)` を上書きすれば変えられる。
+塗りは Highlight を 2 つに分けてあるので、それぞれ別に指定できる。
 
 ```css
-::highlight(ecw-selection) { background-color: #b4d5fe; color: inherit; }
+/* 選択 */
+::highlight(tf-selection) { background-color: #b4d5fe; color: inherit; }
+
+/* キャレットがインラインブロック (ルビの rb / rt) の中にいる印 */
+::highlight(tf-inline-active) { background-color: #ffe9a8; }
 ```
+
+`rb` / `rt` の中身と、その外側の端は画面上の同じ点なので、キャレットだけでは
+どちらにいるか見えない。中にいるときは囲んでいる箱を塗って見せている。
 
 ## まだ無いもの
 
-- undo / redo、コピー & ペースト、node view、テーブル、共同編集
+- コピー & ペースト、node view、テーブル、共同編集
 - Shift + クリックでの範囲拡張、ダブル / トリプルクリックのブロック跨ぎ、
   タッチ・ペンでの選択 (ドラッグは `mousedown` 系しか見ていない)
 - ネスト構造 (リスト、引用)。ブロックが入れ子になるとフォーカス管理の設計が増える

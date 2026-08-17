@@ -155,8 +155,8 @@ EditContext が `-webkit-user-modify: read-write` を強制する
 描画は **CSS Custom Highlight API** で解決できることを実機で確認した。
 
 ```js
-CSS.highlights.set("ecw-selection", new Highlight(range));
-// ::highlight(ecw-selection) { background-color: ...; color: ...; }
+CSS.highlights.set("tf-selection", new Highlight(range));
+// ::highlight(tf-selection) { background-color: ...; color: ...; }
 ```
 
 EditContext を張った 2 ブロックを跨いでハイライトされる (2 行分の rect が塗られる)。

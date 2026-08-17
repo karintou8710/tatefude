@@ -1,0 +1,26 @@
+.toolbar {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 8px;
+}
+
+.button {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--pane-bg);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.active {
+  border-color: currentColor;
+  font-weight: 600;
+}

@@ -3,33 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>editcontext-wysiwyg demo</title>
-    <link rel="stylesheet" href="./style.css" />
+    <title>tatefude demo</title>
   </head>
   <body>
-    <header>
-      <h1>editcontext-wysiwyg</h1>
-      <p id="support"></p>
-      <div class="controls">
-        <label><input type="radio" name="writing-mode" value="horizontal" checked /> 横書き</label>
-        <label><input type="radio" name="writing-mode" value="vertical" /> 縦書き (vertical-rl)</label>
-      </div>
-    </header>
-    <main>
-      <section class="editor-pane" id="editor-pane">
-        <div id="editor"></div>
-      </section>
-      <aside class="debug-pane">
-        <h2>selection</h2>
-        <pre id="selection"></pre>
-        <h2>EditContext (ブロックごと)</h2>
-        <div id="contexts"></div>
-        <h2>doc</h2>
-        <pre id="doc"></pre>
-        <h2>events</h2>
-        <pre id="events"></pre>
-      </aside>
-    </main>
-    <script type="module" src="./main.ts"></script>
+    <div id="root"></div>
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>

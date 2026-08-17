@@ -1,0 +1,46 @@
+.header h1 {
+  font-size: 18px;
+  margin: 0 0 4px;
+}
+
+.header > p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+/* エディタの切り替え */
+.editors {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.editorLink {
+  display: flex;
+  text-decoration: none;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--pane-bg);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.editorLink.current {
+  border-color: currentColor;
+}
+
+.name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.description {
+  font-size: 11px;
+  opacity: 0.6;
+}

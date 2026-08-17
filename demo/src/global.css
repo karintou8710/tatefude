@@ -1,0 +1,47 @@
+/* ハッシュ化できないもの。ページ全体と、**ライブラリが描くクラス** への指定。
+   `.tf-editor` や `[data-tf-*]` は編集エンジンが付ける名前なので、
+   CSS Module にすると名前が変わって当たらなくなる。 */
+
+/* OS が dark でも明るいままにする。dark にしたければこの 1 行を light dark に戻す */
+:root {
+  color-scheme: light;
+  --bg: #f6f6f7;
+  --pane-bg: #ffffff;
+  --fg: #1c1c1e;
+  --border: color-mix(in srgb, currentColor 18%, transparent);
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 16px 24px;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+/* 余白はペインではなくエディタ側に持たせる。mousedown を張っているのがエディタなので、
+   ペインに付けるとその帯がクリックの効かない場所になる。
+   キャレット層は inset: 0 = パディングボックス基準なので、座標系はずれない。 */
+.tf-editor {
+  min-height: 240px;
+  padding: 8px 16px;
+  line-height: 1.9;
+  font-size: 16px;
+}
+
+/* エディタごとの書式が素直に上書きできるよう、基底は :where() で詳細度を持たない。
+   同点だと注入順で決まってしまい、import の並び替えで壊れる */
+
+/* EditContext を付けたブロックは editable 扱いになる。フォーカスリングは自前で消す。 */
+.tf-editor :where([data-tf-textblock]) {
+  margin: 0 0 4px;
+  outline: none;
+}
+
+/* 中身がブロックの Plot。EditContext は張らないので editable にはならない。
+   縦書きでは border-inline-start が自動で右側に回る。 */
+.tf-editor :where([data-tf-container]) {
+  margin: 0 0 4px;
+  padding-inline-start: 12px;
+  border-inline-start: 3px solid var(--border);
+}

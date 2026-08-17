@@ -1,29 +1,20 @@
 {
-  "name": "editcontext-wysiwyg",
+  "name": "tatefude-monorepo",
   "version": "0.0.0",
   "private": true,
-  "description": "EditContext API を土台にした ProseMirror ライクな RTE ライブラリ",
   "type": "module",
   "packageManager": "pnpm@10.23.0",
-  "exports": {
-    ".": "./src/index.ts"
-  },
   "scripts": {
-    "dev": "vite",
-    "typecheck": "tsc --noEmit",
+    "dev": "pnpm --filter @tatefude/demo dev",
+    "build": "pnpm --filter tatefude --filter tatefude-react build",
+    "typecheck": "pnpm -r typecheck",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "test": "vitest run --project node",
-    "test:browser": "vitest run --project browser",
-    "test:all": "vitest run"
+    "test": "pnpm --filter tatefude test",
+    "test:browser": "pnpm --filter tatefude test:browser",
+    "test:all": "pnpm --filter tatefude test:all"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.13",
-    "@vitest/browser": "^4.1.10",
-    "@vitest/browser-playwright": "^4.1.10",
-    "playwright": "^1.61.1",
-    "typescript": "^6.0.3",
-    "vite": "^8.0.10",
-    "vitest": "^4.1.10"
+    "@biomejs/biome": "^2.4.13"
   }
 }

@@ -1,0 +1,32 @@
+/* 2 列目は auto。デバッグパネルを閉じるとつまみの幅まで縮み、エディタが広がる */
+.main {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+}
+
+.pane {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--pane-bg);
+}
+
+/* 親の高さが決まっているとき (台本の用紙) だけ効く。auto の親では auto に落ちる */
+.host {
+  height: 100%;
+}
+
+/* 縦書き。writing-mode は継承するのでペインに掛ければエディタにも届く。
+   vertical-rl では height が行の長さ (インライン方向)、width が行の積み方向。 */
+.pane.vertical {
+  writing-mode: vertical-rl;
+  overflow-x: auto;
+}
+
+/* 行の長さ。エディタ側が --line-length を上書きすれば変えられる。
+   詳細度を積み上げて勝たせるより、変数で渡すほうが後から追いやすい */
+.pane.vertical :global(.tf-editor) {
+  min-height: 0;
+  height: var(--line-length, 420px);
+}

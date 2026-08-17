@@ -1,13 +1,14 @@
-# editcontext-wysiwyg 雛形設計
+# tatefude 雛形設計
 
 EditContext API を土台にした ProseMirror ライクな RTE ライブラリ。
 contenteditable の DOM 監視・修復を一切持たないことが設計上の主張。
 
 決定事項:
 
-- ランタイム依存ゼロのフルスクラッチ。**モデルと構成の仕組みは Wordgard の設計に学ぶ**
+- ランタイム依存ゼロ。**モデルと構成の仕組みは Wordgard 由来**
   (doc は Plot / Leaf / Tag / Shape / Query ベースの Schema、state は facet / extension。
-  コードは共有していない)。変更の表現だけ ProseMirror 寄りのステップ列 (§10, §11)
+  `src/doc/` は Wordgard の doc パッケージから派生している → LICENSE)。
+  変更の表現だけ ProseMirror 寄りのステップ列 (§10, §11)
 - **EditContext はブロック要素ごとに 1 つ**。各ブロックのバッファはそのブロックの全文を持ち、
   全ブロック分を常に保持する
 - M0 の範囲は §6
@@ -135,10 +136,10 @@ Plot は編集ホストにしない (`tabIndex` も付けない)。
 
 ```
 doc                                    DOM                              EditContext
-├ paragraph "あいう"              →   <p data-ecw-textblock>       ←→   EC("あいう")
-└ blockquote                      →   <blockquote data-ecw-container>    (張らない)
-  ├ paragraph "えお"              →     <p data-ecw-textblock>     ←→   EC("えお")
-  └ paragraph "かき"              →     <p data-ecw-textblock>     ←→   EC("かき")
+├ paragraph "あいう"              →   <p data-tf-textblock>       ←→   EC("あいう")
+└ blockquote                      →   <blockquote data-tf-container>    (張らない)
+  ├ paragraph "えお"              →     <p data-tf-textblock>     ←→   EC("えお")
+  └ paragraph "かき"              →     <p data-tf-textblock>     ←→   EC("かき")
 ```
 
 view はブロックの構造だけを木で持ち (`BlockNodeView` = `TextblockView` / `ContainerView`)、
@@ -204,6 +205,14 @@ wordgard は `cursorInsideBounds` を持つインラインブロックの境界�
 - 範囲の書き換えは `from` を内側 (`bias = 1`)、`to` を外側で挟む。こうするとバッファ上の
   範囲がちょうど文字の範囲になり、ルビの中の変換が構造を壊さない (`ime/manager.ts`)
 
+### インラインブロックの中の Enter
+
+**何もしない (決めた挙動)。** wordgard の `splitTextblock` は内側の箱も閉じて開き直すが、
+それには「箱の末尾にいるときは開き直さない」判定 (`tag.split(atEnd)` /
+`preserveOnSplitAtEnd`) が要る。それ無しで開き直すと、`<rb>` の末尾で割ったときに
+後ろに続く `<rt>` が `<rb>` の中に入り、スキーマに合わないので**読みが黙って捨てられる**。
+ルビを割れないことより、読みが消えることのほうが悪い。
+
 ### 内側の端のキャレット
 
 `cursorInsideBounds` を持つインラインブロックには、**内側の端にもキャレット位置がある**
@@ -238,6 +247,7 @@ DOM だけでは区別が付かないので、3 か所で支えている。
 | **選択がブロックを跨ぐ状態での削除・入力** | `beforeinput` で乗っ取り、自前で範囲削除してから挿入 |
 | Enter | `keydown` でブロック分割 → 新ブロックの EC を作り `focus()` |
 | Mod-b / Mod-i | `keydown` |
+| undo / redo | `keydown` (Mod-z / Mod-Shift-z / Mod-y)。キーを伴わないメニューからの取り消しは `beforeinput` の `historyUndo` / `historyRedo` |
 | クリック・ドラッグによるキャレット移動 | ネイティブ。`selectionchange` で model に取り込む |
 | **矢印キーによる移動 (修飾なし)** | `keydown` で全部自前 (`input/arrow.ts`)。物理キーを論理方向に直し、inline 軸は grapheme 単位、block 軸は行の矩形から引く。ブロックの端まで来たら隣接ブロックへ `focus()` + キャレット設定 |
 | Mod / Alt + 矢印 (単語単位・行頭行末・ページ) | まだネイティブ。縦書きでは軸がずれる (M1) |
@@ -268,6 +278,7 @@ grapheme・単語境界の計算を自前で持つことになる (§2 の「key
 | `deleteContentBackward` / `deleteWordBackward` ほか | Backspace のほかに macOS の Ctrl-H / Alt-Backspace などから飛ぶ。そもそも keymap では見ないと決めた入力 |
 | `deleteContentForward` / `deleteWordForward` | 同上 (macOS の Ctrl-D) |
 | `insertLineBreak` | Shift-Enter を keymap から意図的に流している先。macOS の Ctrl-O も来る |
+| `historyUndo` / `historyRedo` | メニューや右クリックからの取り消し。そもそもキーを伴わない |
 
 キーではなく意図で受けているので、OS ごとの割り当てを書き並べなくて済む。これが
 beforeinput を残す理由で、keymap と同じことを二度書く理由ではない。
@@ -385,9 +396,13 @@ onTextUpdate(block: BlockHandle, e: TextUpdateEvent) {
 - エディタの中では `::selection { background-color: transparent }` でネイティブの
   選択描画を消す
 - model の選択をブロックごとの `Range` にして **CSS Custom Highlight API** に登録する
-  (`CSS.highlights.set("ecw-selection", ...)`)。Highlight はブロックを跨いで塗られる
+  (`CSS.highlights.set("tf-selection", ...)`)。Highlight はブロックを跨いで塗られる
 - 色は既定でシステムの選択色 (`Highlight` / `HighlightText`)。
-  `::highlight(ecw-selection)` を上書きすれば変えられる
+  `::highlight(tf-selection)` を上書きすれば変えられる
+- **Highlight は 2 つに分ける**。`tf-selection` が選択、`tf-inline-active` が
+  「キャレットがインラインブロックの中にいる」印。`rb` / `rt` の中身とその外側の端は
+  画面上の同じ点なので、キャレットだけではどちらにいるか見えない。中にいる間は
+  囲んでいる箱を塗って見せる。意味が選択とは違うので、色を別に指定できるよう名前を割った
 
 キャレット (空の選択) はネイティブのままブラウザが描く。塗るのは範囲があるときだけ。
 
@@ -399,21 +414,25 @@ DOM の選択は丸まったままになるが、見た目は Highlight が持�
 
 ## 4. ディレクトリ構成
 
+pnpm workspace。`packages/*` が公開するもので、`demo/` は利用側。
+以下は `packages/core/` の中身 (パスは全部そこからの相対)。
+
 ```
-editcontext-wysiwyg/
-├── package.json            ESM only / 依存ゼロ / pnpm
-├── tsconfig.json           strict
+tatefude/
+├── package.json            private / scripts だけ
+├── tsconfig.base.json      strict / 各パッケージが extends する
 ├── biome.json
-├── vite.config.ts          demo 用
-├── vitest.config.ts        node project + browser project
 ├── README.md
 ├── docs/
 │   ├── design.md           このファイル
 │   └── editcontext.md      Blink 実装から読み取った挙動メモ + 実機で確かめたこと
-├── demo/
-│   ├── index.html
-│   ├── style.css
-│   └── main.ts             エディタ + デバッグパネル
+├── packages/core/          ESM only / 依存ゼロ (以下の src, test はここ)
+│   ├── package.json
+│   ├── LICENSE             Third-party code の表示を含む
+│   ├── tsdown.config.ts    配布物のビルド
+│   └── vitest.config.ts    node project + browser project
+├── packages/react/         React アダプタ (useEditor / useEditorState / EditorContent)
+├── demo/                   利用側 (React。構成は README を参照)
 ├── src/
 │   ├── index.ts
 │   ├── schema-basic.ts     doc / paragraph / text + strong / em
@@ -546,7 +565,7 @@ class BlockEditContext {
 
 **やらないこと (M1 以降)**
 
-- undo / redo、コピー&ペースト、node view、テーブル、共同編集
+- コピー&ペースト、node view、テーブル、共同編集
 - Shift + クリックでの範囲拡張、ダブル / トリプルクリックの跨ぎ、タッチ・ペンでの選択
   (ドラッグは `mousedown` 系しか見ていない)
 - ネスト構造の**構造編集** — 描画と EditContext の割り当ては blockquote で対応済み (§2)。
@@ -595,23 +614,26 @@ per-block 構成の成否がここに乗っている。確認したことは `do
 
 | 用途 | 選択 |
 | --- | --- |
-| パッケージ管理 | pnpm |
+| パッケージ管理 | pnpm workspace (`packages/*` + `demo`) |
 | 言語 | TypeScript strict / ESM only / ランタイム依存ゼロ |
 | デモ | Vite |
+| 配布物のビルド | tsdown (1 ファイルに束ねる。`publishConfig` で `exports` を差し替え) |
 | Lint / Format | Biome |
 | テスト (model, transform, block-text) | Vitest (node) |
 | テスト (view, ime) | Vitest browser mode + Playwright Chromium |
 
 IME のテストは CDP の `Input.imeSetComposition` を叩いて実際の変換経路を通す。
 `textupdate` 経由で doc がどう変わるかを、変換開始・候補変更・確定の各段階で検証する。
-フレームワーク非依存 (素の DOM) で作り、React アダプタは別パッケージとして後から足す。
+フレームワーク非依存 (素の DOM) で作り、React アダプタは `packages/react` に分けた。
+core が React に依存しないので「依存ゼロ」が保てる。アダプタが state を購読する口は
+`dispatchTransaction` ではなく `updateListener` facet で、利用側から唯一の口を奪わない。
 
 ---
 
-## 10. ドキュメントモデル (Wordgard の設計に学ぶ)
+## 10. ドキュメントモデル (Wordgard 由来)
 
-`src/doc/` は [Wordgard](https://wordgard.net/) の doc パッケージの考え方をなぞっている
-(設計から学んだだけで、コードは共有していない)。ProseMirror の
+`src/doc/` は [Wordgard](https://wordgard.net/) (MIT) の doc パッケージから派生している
+(著作権表示は LICENSE の "Third-party code")。ProseMirror の
 `Node` / `Fragment` / `NodeSpec` ではなく、次の語彙を使う。
 
 | Wordgard の語彙 | 中身 |
