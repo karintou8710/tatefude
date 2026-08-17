@@ -113,17 +113,27 @@ export class NodeSelection extends Selection {
   }
 }
 
-/** テキストブロックの中に収まる位置に丸める */
+/**
+ * キャレットが留まれる位置か。テキストブロックの中に加えて、`cursorInsideBounds` を持つ
+ * インラインブロック (ルビの rb / rt) の中も認める。ここを認めないと、選択を指定しない
+ * トランザクションが挟まるたびにキャレットがインラインブロックの外へ弾き出される。
+ */
+function isCaretPosition($pos: Pos): boolean {
+  const parent = $pos.parent;
+  return parent.isTextblock || parent.type.cursorInsideBounds;
+}
+
+/** キャレットが留まれる位置に丸める */
 export function resolveNear(doc: Plot, pos: number, bias: -1 | 1 = 1): Pos {
   const size = doc.contentLength;
   const target = Math.max(0, Math.min(pos, size));
   const $target = Pos.resolve(doc, target);
-  if ($target.parent.isTextblock) return $target;
+  if (isCaretPosition($target)) return $target;
   for (let d = 1; d <= size; d++) {
     for (const candidate of bias > 0 ? [target + d, target - d] : [target - d, target + d]) {
       if (candidate < 0 || candidate > size) continue;
       const $candidate = Pos.resolve(doc, candidate);
-      if ($candidate.parent.isTextblock) return $candidate;
+      if (isCaretPosition($candidate)) return $candidate;
     }
   }
   throw new RangeError("テキストを置ける位置がドキュメントにない");

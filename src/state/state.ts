@@ -1,7 +1,14 @@
 import { ChangeSet, type ChangeSpec, fitChange, type Node, type Plot, Schema } from "../doc";
+import { compositionField } from "./composition";
 import { Configuration, type Extension, Facet, type Field } from "./facet";
 import { Selection } from "./selection";
 import { Transaction, type TransactionSpec } from "./transaction";
+
+/**
+ * 構成に必ず入るもの。IME 変換中の下線は contenteditable ならブラウザが描くが、
+ * EditContext では描かないので、こちらで出さないと日本語入力が使えない。
+ */
+const coreExtensions: Extension = [compositionField];
 
 /** スキーマ自体ではなくノード型・マーク型を並べると、構成側で組み上がる */
 export const schemaElement: Facet<Schema.Element, Schema | null> = Facet.define<
@@ -58,7 +65,7 @@ export class EditorState {
   }
 
   static create(spec: EditorStateSpec = {}): EditorState {
-    const config = Configuration.resolve(spec.config ?? []);
+    const config = Configuration.resolve([coreExtensions, spec.config ?? []]);
     const schema = config.staticFacet(schemaElement);
     if (!schema) throw new Error("構成にスキーマの部品が無い (schemaElement を供給すること)");
     const doc = readDoc(schema, spec.doc);

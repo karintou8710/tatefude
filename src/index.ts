@@ -5,6 +5,7 @@ export {
   insertText,
   joinBackward,
   joinForward,
+  liftEmptyBlock,
   markChanges,
   rangeHasMark,
   selectAll,
@@ -41,16 +42,18 @@ export {
 export { BlockEditContext } from "./ime/block-context";
 export { isEditContextSupported } from "./ime/edit-context-api";
 export { EditContextManager } from "./ime/manager";
+export {
+  type ArrowKey,
+  type ArrowMotion,
+  arrowMotion,
+  handleArrow,
+  isArrowKey,
+  moveByArrow,
+} from "./input/arrow";
 export { handleBeforeInput } from "./input/beforeinput";
+export { alongOf, crossToAdjacentBlock } from "./input/boundary";
 export { handleKeyDown } from "./input/keymap";
 export { PointerSelection, posAtCoords } from "./input/pointer";
-export {
-  type CompositionEvent,
-  type CompositionState,
-  composition,
-  compositionEvent,
-  compositionField,
-} from "./plugins/composition";
 export {
   Blockquote,
   basicSchema,
@@ -59,9 +62,19 @@ export {
   Emphasis,
   EmphasisDots,
   Paragraph,
+  Ruby,
+  RubyBase,
+  RubyText,
   Strong,
 } from "./schema-basic";
+export {
+  type CompositionEvent,
+  type CompositionState,
+  compositionEvent,
+  compositionField,
+} from "./state/composition";
 export { type CorrectionContext, type CorrectionSpec, correction } from "./state/correction";
+export { DecorationSet, decorations, type InlineDecoration } from "./state/decoration";
 export {
   Configuration,
   type Extension,
@@ -91,9 +104,7 @@ export {
   syncBlockChildren,
   TextblockView,
 } from "./view/block-view";
-export { DecorationSet, type InlineDecoration } from "./view/decoration";
 export {
-  decorations,
   handleBeforeInput as beforeInputHandler,
   handleKeyDown as keyDownHandler,
 } from "./view/extension";

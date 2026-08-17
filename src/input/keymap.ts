@@ -1,6 +1,13 @@
-import { type Command, selectAll, splitBlock, toggleMark } from "../commands/base";
+import {
+  type Command,
+  chainCommands,
+  liftEmptyBlock,
+  selectAll,
+  splitBlock,
+  toggleMark,
+} from "../commands/base";
 import type { EditorView } from "../view/view";
-import { handleBoundaryArrow } from "./boundary";
+import { handleArrow } from "./arrow";
 
 function run(view: EditorView, command: Command): boolean {
   const spec = command(view.state);
@@ -10,6 +17,9 @@ function run(view: EditorView, command: Command): boolean {
 }
 
 const isMac = typeof navigator !== "undefined" && /Mac|iP(hone|ad|od)/.test(navigator.userAgent);
+
+// 空のブロックなら親から出る。出られなければいつも通り割る
+const onEnter = chainCommands(liftEmptyBlock, splitBlock);
 
 /**
  * keydown は EditContext と無関係にすべてのキーで飛ぶ。true を返すと preventDefault され、
@@ -39,7 +49,7 @@ export function handleKeyDown(view: EditorView, event: KeyboardEvent): boolean {
   ) {
     // 変換を確定させた Enter がここまで届くことがある。改行の意図ではないので捨てる
     if (view.ime.endedCompositionRecently(event)) return true;
-    return run(view, splitBlock);
+    return run(view, onEnter);
   }
-  return handleBoundaryArrow(view, event);
+  return handleArrow(view, event);
 }

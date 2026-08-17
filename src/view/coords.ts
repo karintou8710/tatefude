@@ -31,6 +31,7 @@ export function caretPointFromCoords(x: number, y: number): { node: Node; offset
   return null;
 }
 
+/** この要素の中だけを平らに数えたときの N 文字目。箱をまたぐ判断は view/dom-point.ts */
 export function blockOffsetToDOMPoint(
   blockDOM: HTMLElement,
   offset: number,

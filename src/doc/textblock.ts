@@ -34,21 +34,32 @@ export class TextblockMap {
 
   posToOffset(pos: number): number {
     for (const segment of this.segments) {
-      if (pos >= segment.docFrom && pos <= segment.docFrom + segment.length) {
+      // インラインブロックの開き / 閉じは 0 文字なので、どの断片にも入らない位置がある。
+      // 断片は doc 順なので、行き過ぎたらその手前に寄せる
+      if (pos < segment.docFrom) return segment.offset;
+      if (pos <= segment.docFrom + segment.length) {
         return segment.offset + (pos - segment.docFrom);
       }
     }
-    return pos <= this.contentStart ? 0 : this.text.length;
+    return this.text.length;
   }
 
-  offsetToPos(offset: number): number {
+  /**
+   * インラインブロックの境界では、1 つのオフセットに複数の doc 位置が当たる
+   * (ルビの手前とルビの中の先頭など)。`bias` が正なら内側 (文書順で後ろ) を採る。
+   * 境界の無いブロックではどちらでも同じ位置になる。
+   */
+  offsetToPos(offset: number, bias: -1 | 1 = -1): number {
     const clamped = Math.max(0, Math.min(offset, this.text.length));
+    let last: number | null = null;
     for (const segment of this.segments) {
       if (clamped >= segment.offset && clamped <= segment.offset + segment.length) {
-        return segment.docFrom + (clamped - segment.offset);
+        const pos = segment.docFrom + (clamped - segment.offset);
+        if (bias < 0) return pos;
+        last = pos;
       }
     }
-    return this.contentStart;
+    return last ?? this.contentStart;
   }
 
   eq(other: TextblockMap): boolean {
@@ -59,18 +70,28 @@ export class TextblockMap {
 export function buildTextblockMap(block: Plot, blockFrom: number): TextblockMap {
   const segments: Segment[] = [];
   let text = "";
-  const contentStart = blockFrom + 1;
-  let offset = 0;
-  for (const child of block.content as readonly Node[]) {
-    const docFrom = contentStart + offset;
-    if (child.isLeaf && child.isText) {
-      segments.push({ docFrom, offset: text.length, length: child.length });
-      text += child.text;
-    } else if (child.isInline) {
-      segments.push({ docFrom, offset: text.length, length: 1 });
-      text += ATOM_CHAR;
+
+  /**
+   * インラインブロック (中身を持つインライン Plot) は中身を展開する。開きと閉じは
+   * **0 文字**に写す — バッファは DOM のテキストと一致していなければならず
+   * (`Range.toString()` で測るため)、要素の境界に対応する文字が DOM に無いから。
+   */
+  const scan = (plot: Plot, contentStart: number): void => {
+    let pos = contentStart;
+    for (const child of plot.content as readonly Node[]) {
+      if (child.isLeaf && child.isText) {
+        segments.push({ docFrom: pos, offset: text.length, length: child.length });
+        text += child.text;
+      } else if (child.isPlot) {
+        scan(child, pos + 1);
+      } else if (child.isInline) {
+        segments.push({ docFrom: pos, offset: text.length, length: 1 });
+        text += ATOM_CHAR;
+      }
+      pos += child.length;
     }
-    offset += child.length;
-  }
+  };
+
+  scan(block, blockFrom + 1);
   return new TextblockMap(blockFrom, text, segments);
 }

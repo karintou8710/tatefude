@@ -52,6 +52,42 @@ export const splitBlock: Command = (state) => {
   };
 };
 
+/**
+ * 空のテキストブロックを親のブロックから 1 段外に出す。引用の中で Enter を 2 回、で抜ける動き。
+ *
+ * 前後の兄弟をそれぞれ親で包み直し、間に自分を裸で置く。兄弟がいない側は包まない
+ * (包むと空の親が残る)。親をまるごと 1 回で置き換えるのは、開きだけ / 閉じだけを消す
+ * 変更に割ると、ChangeSpec を 1 個適用した時点で木が釣り合わなくなるため。
+ */
+export const liftEmptyBlock: Command = (state) => {
+  const $from = state.selection.$from;
+  if (!state.selection.empty) return false;
+  if (!$from.parent.isTextblock || $from.parent.contentLength) return false;
+  // 深さ 1 の親は doc なので、出る先が無い
+  const depth = $from.depth;
+  if (depth < 2) return false;
+
+  const parent = $from.node(depth - 1);
+  if (!state.schema.canContain($from.node(depth - 2).type, $from.parent.type)) return false;
+
+  const index = $from.index(depth - 1);
+  const before = parent.content.slice(0, index);
+  const after = parent.content.slice(index + 1);
+  const tokens: Token[] = [];
+  if (before.length) tokens.push(parent.tag, ...before, Close);
+  tokens.push(parent.child(index));
+  if (after.length) tokens.push(parent.tag.split(), ...after, Close);
+
+  const parentFrom = $from.before(depth - 1);
+  const leading = before.length ? 2 + before.reduce((n, node) => n + node.length, 0) : 0;
+  const caret = parentFrom + leading + 1;
+  return {
+    changes: { from: parentFrom, to: $from.after(depth - 1), insert: tokens },
+    selection: (doc) => Selection.near(doc, caret),
+    userEvent: "input.lift",
+  };
+};
+
 /** ブロック先頭の Backspace。それ以外の位置では false */
 export const joinBackward: Command = (state) => {
   const { from, empty } = state.selection;

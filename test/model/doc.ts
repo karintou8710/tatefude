@@ -1,8 +1,21 @@
 import { Leaf, type Mark, type Node, type Plot, Schema } from "../../src/doc";
-import { basicSchemaElements, Emphasis, Paragraph, Strong } from "../../src/schema-basic";
+import {
+  basicSchemaElements,
+  Emphasis,
+  Paragraph,
+  Ruby,
+  RubyBase,
+  RubyText,
+  Strong,
+} from "../../src/schema-basic";
 
 export const schema = Schema.define(basicSchemaElements);
 export { Emphasis, Paragraph, Strong };
+
+/** ルビ = インラインブロックのテスト用の組み立て */
+export function ruby(base: string, reading: string): Node {
+  return Ruby.create([RubyBase.create([Leaf.text(base)]), RubyText.create([Leaf.text(reading)])]);
+}
 
 /** テスト用のドキュメント組み立て */
 export function doc(...blocks: Node[]): Plot {

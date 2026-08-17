@@ -1,5 +1,6 @@
 import { type Selection, TextSelection } from "../state/selection";
-import { blockOffsetToDOMPoint, domPointToBlockOffset } from "./coords";
+import { domPointToBlockOffset } from "./coords";
+import { blockPosToDOMPoint } from "./dom-point";
 import type { EditorView } from "./view";
 
 /** キャレットの描画はブラウザに任せる */
@@ -13,14 +14,8 @@ export function writeDOMSelection(view: EditorView): void {
   const domSelection = document.getSelection();
   if (!domSelection) return;
 
-  const anchorPoint = blockOffsetToDOMPoint(
-    anchorBlock.contentDOM,
-    anchorBlock.text.posToOffset(selection.anchor),
-  );
-  const headPoint = blockOffsetToDOMPoint(
-    headBlock.contentDOM,
-    headBlock.text.posToOffset(selection.head),
-  );
+  const anchorPoint = blockPosToDOMPoint(anchorBlock, selection.anchor);
+  const headPoint = blockPosToDOMPoint(headBlock, selection.head);
 
   // フォーカスの移動でアクティブな EditContext が決まる
   if (document.activeElement !== headBlock.dom) {

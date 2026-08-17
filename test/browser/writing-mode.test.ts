@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Leaf, type Plot } from "../../src/doc";
+import { arrowMotion } from "../../src/input/arrow";
 import { basicSchema, Paragraph } from "../../src/schema-basic";
 import { TextSelection } from "../../src/state/selection";
 import { EditorState } from "../../src/state/state";
@@ -95,15 +96,47 @@ describe("書字方向とブロックを跨ぐ移動", () => {
     expect(blockIndexOfCaret()).toBe(0);
   });
 
-  it("縦書き: 行の途中では跨がない", () => {
+  it("縦書き: 行の途中の ArrowDown はブロックの中で 1 つ進む", () => {
     view = mount(true, "あいう", "かきく");
     setCaret(2);
-    expect(pressKey("ArrowDown")).toBe(false);
+    expect(pressKey("ArrowDown")).toBe(true);
     expect(blockIndexOfCaret()).toBe(0);
+    expect(view.state.selection.head).toBe(3);
   });
 
   it("縦書きでもブロックごとに EditContext が張られ、バッファは同じ", () => {
     view = mount(true, "あいう", "かきく");
     expect(view.ime.all.map((c) => c.ec.text)).toEqual(["あいう", "かきく"]);
+  });
+});
+
+describe("物理キー → 論理方向", () => {
+  function motions(vertical: boolean): Record<string, string> {
+    view = mount(vertical, "あいう");
+    const dom = view.textblocks[0].contentDOM;
+    const result: Record<string, string> = {};
+    for (const key of ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"] as const) {
+      const { axis, backward } = arrowMotion(key, dom);
+      result[key] = `${axis} ${backward ? "backward" : "forward"}`;
+    }
+    return result;
+  }
+
+  it("横書きは左右が行の中、上下が行の跨ぎ", () => {
+    expect(motions(false)).toEqual({
+      ArrowLeft: "inline backward",
+      ArrowRight: "inline forward",
+      ArrowUp: "block backward",
+      ArrowDown: "block forward",
+    });
+  });
+
+  it("縦書き (vertical-rl) は軸が入れ替わり、左が「次」になる", () => {
+    expect(motions(true)).toEqual({
+      ArrowUp: "inline backward",
+      ArrowDown: "inline forward",
+      ArrowLeft: "block forward",
+      ArrowRight: "block backward",
+    });
   });
 });

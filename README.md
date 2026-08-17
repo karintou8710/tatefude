@@ -14,7 +14,7 @@ ProseMirror の Step / Transform / storedMarks に当たるものはありませ
 
 ```ts
 const state = EditorState.create({
-  config: [basicSchema(), composition()],
+  config: [basicSchema()],
   doc: (schema) => schema.doc([...]),
 });
 

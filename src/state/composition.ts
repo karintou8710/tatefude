@@ -1,8 +1,6 @@
-import type { Extension } from "../state/facet";
-import { Field } from "../state/facet";
-import { Annotation } from "../state/transaction";
-import { DecorationSet, type InlineDecoration } from "../view/decoration";
-import { decorations } from "../view/extension";
+import { DecorationSet, decorations, type InlineDecoration } from "./decoration";
+import { Field } from "./facet";
+import { Annotation } from "./transaction";
 
 export interface CompositionState {
   decorations: DecorationSet;
@@ -37,7 +35,3 @@ export const compositionField: Field<CompositionState> = Field.define<Compositio
   },
   provide: (field) => decorations.from(field, (value) => value.decorations),
 });
-
-export function composition(): Extension {
-  return compositionField;
-}

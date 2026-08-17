@@ -1,5 +1,5 @@
 import { ATOM_CHAR, type Elt, type Mark, type Node, type Plot } from "../doc";
-import type { InlineDecoration } from "./decoration";
+import type { InlineDecoration } from "../state/decoration";
 
 export interface RenderedBlock {
   /** 外側の要素 */
@@ -56,19 +56,41 @@ export function renderBlockContent(
     contentDOM.appendChild(document.createElement("br"));
     return;
   }
-  const contentStart = blockFrom + 1;
+  renderInlineContent(contentDOM, block, blockFrom + 1, decorations);
+}
+
+/** インラインブロック (中身を持つインライン Plot) があるので、中身の描画は再帰する */
+function renderInlineContent(
+  target: HTMLElement,
+  plot: Plot,
+  contentStart: number,
+  decorations: readonly InlineDecoration[],
+): void {
   let offset = 0;
-  for (const child of block.content) {
+  for (const child of plot.content) {
     const from = contentStart + offset;
     if (child.isLeaf && child.isText) {
       for (const run of splitByDecorations(child.text, from, decorations)) {
-        contentDOM.appendChild(renderInline(run.text, child.marks, run.decorations));
+        target.appendChild(renderInline(run.text, child.marks, run.decorations));
       }
+    } else if (child.isPlot) {
+      target.appendChild(renderInlineBlock(child, from, decorations));
     } else {
-      contentDOM.appendChild(renderAtom(child));
+      target.appendChild(renderAtom(child));
     }
     offset += child.length;
   }
+}
+
+function renderInlineBlock(
+  node: Plot,
+  from: number,
+  decorations: readonly InlineDecoration[],
+): HTMLElement {
+  const { dom, contentDOM } = renderElt(node.type.shape.render(node.param));
+  dom.setAttribute("data-ecw-inline", "");
+  renderInlineContent(contentDOM ?? dom, node, from + 1, decorations);
+  return dom;
 }
 
 function renderAtom(node: Node): HTMLElement {

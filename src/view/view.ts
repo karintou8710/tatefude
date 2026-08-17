@@ -3,13 +3,14 @@ import { EditContextManager } from "../ime/manager";
 import { handleBeforeInput } from "../input/beforeinput";
 import { handleKeyDown } from "../input/keymap";
 import { PointerSelection } from "../input/pointer";
+import { decorations, type InlineDecoration } from "../state/decoration";
+import type { Selection } from "../state/selection";
 import type { EditorState } from "../state/state";
 import { Transaction, type TransactionSpec } from "../state/transaction";
 import { type BlockNodeView, syncBlockChildren, type TextblockView } from "./block-view";
-import type { InlineDecoration } from "./decoration";
+import { CaretLayer } from "./caret";
 import { readDOMSelection, writeDOMSelection } from "./dom-selection";
 import {
-  decorations,
   handleBeforeInput as handleBeforeInputFacet,
   handleKeyDown as handleKeyDownFacet,
 } from "./extension";
@@ -33,7 +34,13 @@ export class EditorView {
   readonly ime: EditContextManager;
   /** ブラウザの選択は編集ホストの境界で丸まるので、跨ぐ選択を進める間は同期を止める */
   suppressSelectionSync = false;
+  /**
+   * 行を跨ぐ移動でインライン方向の位置を保つための目標座標。
+   * 記録したときの head と一致する間だけ有効で、他の移動が入れば自然に捨てられる。
+   */
+  verticalGoal: { head: number; along: number } | null = null;
   private readonly highlighter = new SelectionHighlighter();
+  private readonly caret: CaretLayer;
   private readonly pointer: PointerSelection;
   private destroyed = false;
   private byFrom = new Map<number, TextblockView>();
@@ -50,6 +57,7 @@ export class EditorView {
     place.appendChild(this.dom);
 
     this.ime = new EditContextManager(this);
+    this.caret = new CaretLayer(this);
     this.pointer = new PointerSelection(this);
     this.dom.addEventListener("keydown", this.onKeyDown);
     this.dom.addEventListener("beforeinput", this.onBeforeInput as EventListener);
@@ -91,8 +99,9 @@ export class EditorView {
     this.byDOM = new Map(textblocks.map((block) => [block.dom, block]));
 
     writeDOMSelection(this);
-    // 選択の見た目はネイティブではなく Highlight が描く
+    // 選択もキャレットもネイティブではなく model から描く
     this.highlighter.update(this);
+    this.caret.update();
     this.ime.syncFromState(this.state);
   }
 
@@ -157,8 +166,19 @@ export class EditorView {
     if (!this.dom.contains(document.activeElement)) return;
     const selection = readDOMSelection(this);
     if (!selection || selection.eq(this.state.selection)) return;
+    // インラインブロックの内側と外側の端は DOM 上の同じ点になる。読み戻したものが
+    // 同じ点を指しているだけなら、model が持っている方を残す
+    if (this.sameDOMPoints(selection, this.state.selection)) return;
     this.dispatch({ selection, userEvent: "select" });
   };
+
+  private sameDOMPoints(a: Selection, b: Selection): boolean {
+    const key = (pos: number): string => {
+      const block = this.textblockAt(pos);
+      return block ? `${block.from}:${block.text.posToOffset(pos)}` : `?${pos}`;
+    };
+    return key(a.anchor) === key(b.anchor) && key(a.head) === key(b.head);
+  }
 
   destroy(): void {
     if (this.destroyed) return;
@@ -169,6 +189,7 @@ export class EditorView {
     document.removeEventListener("selectionchange", this.onSelectionChange);
     this.pointer.destroy();
     this.highlighter.destroy();
+    this.caret.destroy();
     // EditContext は TextblockView が持っているので、木を畳めば一緒に外れる
     for (const child of this.children) child.destroy();
     this.children.length = 0;

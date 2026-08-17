@@ -1,6 +1,6 @@
 import { buildTextblockMap, type Plot, type TextblockMap } from "../doc";
 import type { BlockEditContext } from "../ime/block-context";
-import type { InlineDecoration } from "./decoration";
+import type { InlineDecoration } from "../state/decoration";
 import { createContainerDOM, createTextblockDOM, renderBlockContent } from "./render";
 
 /**
@@ -154,7 +154,10 @@ export function syncBlockChildren(
           ? new TextblockView(child, pos, ctx)
           : new ContainerView(child, pos, ctx);
         views[index] = created;
-        parentDOM.insertBefore(created.dom, parentDOM.childNodes[index] ?? null);
+        // 直前の view の次に挿す。親の DOM には view 以外の子 (キャレット層) も居るので、
+        // 子の index では位置が決まらない
+        const before = index > 0 ? views[index - 1].dom.nextSibling : parentDOM.firstChild;
+        parentDOM.insertBefore(created.dom, before);
       }
       const view = views[index];
       if (view instanceof TextblockView) ctx.textblocks.push(view);

@@ -1,10 +1,10 @@
 import { insertText } from "../commands/base";
-import { buildTextblockMap } from "../doc";
-import { type CompositionEvent, compositionEvent } from "../plugins/composition";
+import { buildTextblockMap, Pos } from "../doc";
+import { type CompositionEvent, compositionEvent } from "../state/composition";
+import type { InlineDecoration } from "../state/decoration";
 import { TextSelection } from "../state/selection";
 import type { EditorState } from "../state/state";
 import type { TextblockView } from "../view/block-view";
-import type { InlineDecoration } from "../view/decoration";
 import type { EditorView } from "../view/view";
 import { BlockEditContext } from "./block-context";
 import { characterBoundsFor, controlBoundsFor, selectionBoundsFor } from "./bounds";
@@ -123,8 +123,28 @@ export class EditContextManager {
     });
     const view = this.view;
     const before = block.text;
-    const from = before.offsetToPos(event.updateRangeStart);
-    const to = before.offsetToPos(event.updateRangeEnd);
+    const start = event.updateRangeStart;
+    const end = event.updateRangeEnd;
+    // インラインブロックの内側と外側の端は同じオフセットに写るので、その区別は model の
+    // 選択にしか無い。EditContext が言う範囲が今の選択と同じなら、選択の位置をそのまま使う
+    const selection = view.state.selection;
+    const matchesSelection =
+      block.contains(selection.from) &&
+      block.contains(selection.to) &&
+      before.posToOffset(selection.from) === start &&
+      before.posToOffset(selection.to) === end;
+    // そうでなければ、範囲は内側と外側で挟んで文字ちょうどにし、挿入は外側に寄せる
+    const from = matchesSelection
+      ? selection.from
+      : before.offsetToPos(start, start === end ? -1 : 1);
+    const to = matchesSelection ? selection.to : start === end ? from : before.offsetToPos(end, -1);
+
+    // 書き換えていたのがインラインブロックの中なら、キャレットもその中に留める。
+    // オフセットからは外側の位置が返るので、そのままでは変換のたびに外へ出てしまう
+    const $from = Pos.resolve(view.state.doc, from);
+    const editedInside = $from.parent.type.cursorInsideBounds
+      ? { from: $from.start($from.depth), to: $from.end($from.depth) }
+      : null;
 
     view.dispatch({
       ...insertText(
@@ -134,14 +154,20 @@ export class EditContextManager {
         context.composing ? "input.type.compose" : "input.type",
       )(view.state),
       // EditContext が言う選択は変更後のオフセットなので、新しい doc から解き直す
-      selection: (doc) => {
+      selection: (doc, changes) => {
         const blockNode = doc.nodeAt(block.from);
         if (!blockNode?.isPlot) return null;
         const after = buildTextblockMap(blockNode, block.from);
+        const clamp = (pos: number): number => {
+          if (!editedInside) return pos;
+          const low = changes.mapPos(editedInside.from, 1);
+          const high = changes.mapPos(editedInside.to, -1);
+          return Math.min(Math.max(pos, low), high);
+        };
         return TextSelection.create(
           doc,
-          after.offsetToPos(event.selectionStart),
-          after.offsetToPos(event.selectionEnd),
+          clamp(after.offsetToPos(event.selectionStart)),
+          clamp(after.offsetToPos(event.selectionEnd)),
         );
       },
     });

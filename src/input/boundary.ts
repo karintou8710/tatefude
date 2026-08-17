@@ -1,78 +1,32 @@
-import { TextSelection } from "../state/selection";
 import type { TextblockView } from "../view/block-view";
 import {
   caretPointFromCoords,
   caretRectAt,
   domPointToBlockOffset,
-  isOnEdgeLine,
   writingModeOf,
 } from "../view/coords";
 import type { EditorView } from "../view/view";
 
-type ArrowKey = "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown";
-
-interface ArrowIntent {
-  /** 行の中を進むか (inline)、行を跨ぐか (block) */
-  axis: "inline" | "block";
-  backward: boolean;
-}
-
-function intentOf(key: ArrowKey, dom: HTMLElement): ArrowIntent {
-  const { vertical, blockForwardIsPositive } = writingModeOf(dom);
-  if (vertical) {
-    // 縦書き: 上下が行の中、左右が行の跨ぎ (vertical-rl は左が「次」)
-    if (key === "ArrowUp") return { axis: "inline", backward: true };
-    if (key === "ArrowDown") return { axis: "inline", backward: false };
-    const rightIsForward = blockForwardIsPositive;
-    return { axis: "block", backward: key === "ArrowRight" ? !rightIsForward : rightIsForward };
-  }
-  if (key === "ArrowLeft") return { axis: "inline", backward: true };
-  if (key === "ArrowRight") return { axis: "inline", backward: false };
-  return { axis: "block", backward: key === "ArrowUp" };
-}
-
 /**
- * ブロックごとに EditContext を張ると 1 つずつが独立した編集領域になるので、端から先へ
- * 出る移動はブラウザがやってくれない。ここで隣のブロックへフォーカスごと移す。
+ * 隣のブロックに入るならどこに着地するか。隣が無ければ null。
+ *
+ * ブロックごとに EditContext を張ると 1 つずつが独立した編集領域になるので、境界を越える
+ * 移動はブラウザがやってくれない。`along` はインライン方向の目標座標で、行を跨ぐ移動の
+ * ときだけ渡す。
  */
-export function handleBoundaryArrow(view: EditorView, event: KeyboardEvent): boolean {
-  if (event.altKey || event.ctrlKey || event.metaKey) return false;
-  const key = event.key as ArrowKey;
-  if (key !== "ArrowLeft" && key !== "ArrowRight" && key !== "ArrowUp" && key !== "ArrowDown") {
-    return false;
-  }
-
-  const selection = view.state.selection;
-  const index = view.textblockIndexAt(selection.head);
-  if (index < 0) return false;
-  const block = view.textblocks[index];
-  const offset = block.text.posToOffset(selection.head);
-  const { axis, backward } = intentOf(key, block.contentDOM);
-
-  const atEdge =
-    axis === "block"
-      ? isOnEdgeLine(block.contentDOM, offset, backward ? -1 : 1)
-      : backward
-        ? offset === 0
-        : offset === block.text.length;
-  if (!atEdge) return false;
-
+export function crossToAdjacentBlock(
+  view: EditorView,
+  index: number,
+  backward: boolean,
+  along: number | null,
+): number | null {
   const target = view.textblocks[backward ? index - 1 : index + 1];
-  if (!target) return false;
-
-  // 行を跨ぐ移動では、インライン方向の位置をなるべく保つ
-  const along = axis === "block" ? alongOf(block, offset) : null;
-  const head = positionInBlock(target, backward, along);
-  const anchor = event.shiftKey ? selection.anchor : head;
-  view.dispatch({
-    selection: TextSelection.create(view.state.doc, anchor, head),
-    userEvent: "select.key",
-  });
-  return true;
+  if (!target) return null;
+  return positionInBlock(target, backward, along);
 }
 
 /** インライン方向の座標 (横書きなら x、縦書きなら y) */
-function alongOf(block: TextblockView, offset: number): number {
+export function alongOf(block: TextblockView, offset: number): number {
   const caret = caretRectAt(block.contentDOM, offset);
   return writingModeOf(block.contentDOM).vertical ? caret.top : caret.left;
 }

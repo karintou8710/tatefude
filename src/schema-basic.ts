@@ -1,4 +1,4 @@
-import { Mark, Node, Plot, type Schema } from "./doc";
+import { Leaf, Mark, Node, Plot, type Schema } from "./doc";
 import type { Extension } from "./state/facet";
 import { schemaElement } from "./state/state";
 
@@ -15,6 +15,33 @@ export const Paragraph = Plot.define("Paragraph", {
   group: G.Content,
   defaultBlock: true,
   shape: { element: "p" },
+});
+
+/**
+ * インラインブロック = 中身を持つインライン Plot。ルビがその代表。
+ *
+ * 開き / 閉じトークンは EditContext のバッファでは 0 文字で、中身だけが乗る。
+ * doc の位置は進むがバッファのオフセットは進まない。
+ */
+export const RubyBase = Plot.define("RubyBase", {
+  inline: true,
+  inlineContent: Leaf.Text,
+  cursorInsideBounds: true,
+  shape: { element: "rb" },
+});
+
+/** 読み。ブラウザが行の外の帯に置くので、行の矩形には入らない */
+export const RubyText = Plot.define("RubyText", {
+  inline: true,
+  inlineContent: Leaf.Text,
+  cursorInsideBounds: true,
+  shape: { element: "rt" },
+});
+
+export const Ruby = Plot.define("Ruby", {
+  inline: true,
+  inlineContent: [RubyBase, RubyText],
+  shape: { element: "ruby" },
 });
 
 /** ブロックを中身に持つ Plot。EditContext は張らず、中のテキストブロックが持つ */
@@ -45,6 +72,9 @@ export const basicSchemaElements: readonly Schema.Element[] = [
   Doc,
   Paragraph,
   Blockquote,
+  Ruby,
+  RubyBase,
+  RubyText,
   Strong,
   Emphasis,
   EmphasisDots,

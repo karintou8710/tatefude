@@ -11,6 +11,8 @@ import type { EditorView } from "../view/view";
 export class PointerSelection {
   private anchor: number | null = null;
   private crossing = false;
+  /** ブロックの外から始まったドラッグ。ブラウザが選択を作れないので最後まで自分で持つ */
+  private owning = false;
 
   constructor(private readonly view: EditorView) {}
 
@@ -18,7 +20,19 @@ export class PointerSelection {
     if (event.button !== 0) return;
     this.anchor = posAtCoords(this.view, event.clientX, event.clientY);
     this.crossing = false;
+    this.owning = false;
     if (this.anchor == null) return;
+
+    // ブロックの外 (エディタの余白や引用の padding) を押すと、ブラウザはキャレットを
+    // 置けずに DOM の選択をエディタの外へ飛ばし、フォーカスも落とす。readDOMSelection は
+    // それを null として黙るので、自分で拾わないとクリックが丸ごと落ちる
+    if (!this.view.textblockForDOM(event.target as globalThis.Node)) {
+      event.preventDefault();
+      this.owning = true;
+      this.select(this.anchor, this.anchor);
+      this.view.focus();
+    }
+
     window.addEventListener("mousemove", this.onMouseMove);
     window.addEventListener("mouseup", this.onMouseUp);
   }
@@ -36,22 +50,19 @@ export class PointerSelection {
     const headBlock = this.view.textblockAt(head);
     const crossing = !!anchorBlock && !!headBlock && anchorBlock !== headBlock;
 
-    if (!crossing) {
-      // ブロックの中に戻ってきたらブラウザに返す
-      if (this.crossing) {
-        this.crossing = false;
-        this.view.suppressSelectionSync = false;
-      }
-      return;
+    // 跨いでいる間だけ DOM の選択との同期を止める。中に戻ったらブラウザに返す
+    if (crossing !== this.crossing) {
+      this.crossing = crossing;
+      this.view.suppressSelectionSync = crossing;
     }
-
-    this.crossing = true;
-    this.view.suppressSelectionSync = true;
-    const selection = TextSelection.create(this.view.state.doc, this.anchor, head);
-    if (!selection.eq(this.view.state.selection)) {
-      this.view.dispatch({ selection, userEvent: "select.pointer" });
-    }
+    if (crossing || this.owning) this.select(this.anchor, head);
   };
+
+  private select(anchor: number, head: number): void {
+    const selection = TextSelection.create(this.view.state.doc, anchor, head);
+    if (selection.eq(this.view.state.selection)) return;
+    this.view.dispatch({ selection, userEvent: "select.pointer" });
+  }
 
   private onMouseUp = (): void => {
     this.stop();
@@ -63,6 +74,7 @@ export class PointerSelection {
     this.anchor = null;
     // 跨いだまま終えても model の選択は残す。DOM の選択は丸まったままだが Highlight が描く
     this.crossing = false;
+    this.owning = false;
     this.view.suppressSelectionSync = false;
   }
 }

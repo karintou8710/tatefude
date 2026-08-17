@@ -318,6 +318,10 @@ class PlotType<Param = unknown> extends BaseType<Param> {
   get isTextblock(): boolean {
     return this.isBlock && this.inlineContent;
   }
+  /** インラインブロックの内側の端にキャレット位置があるか */
+  get cursorInsideBounds(): boolean {
+    return !!this.spec.cursorInsideBounds;
+  }
   get isDoc(): boolean {
     return (this.flags & FLAG.Doc) > 0;
   }
@@ -488,6 +492,11 @@ export namespace Plot {
     canBeEmpty?: boolean;
     /** 段落の代わりに作られる既定のブロックか */
     defaultBlock?: boolean;
+    /**
+     * インラインブロックの内側の端にキャレットを置けるか。既定は外側だけ。
+     * ルビの `<rb>` / `<rt>` のように中を編集するものに付ける。
+     */
+    cursorInsideBounds?: boolean;
   }
 }
 

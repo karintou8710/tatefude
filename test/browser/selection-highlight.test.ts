@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Leaf, type Plot } from "../../src/doc";
-import { basicSchema, Paragraph } from "../../src/schema-basic";
+import { basicSchema, Paragraph, Ruby, RubyBase, RubyText } from "../../src/schema-basic";
 import { TextSelection } from "../../src/state/selection";
 import { EditorState } from "../../src/state/state";
 import { isHighlightSupported, SELECTION_HIGHLIGHT_NAME } from "../../src/view/selection-highlight";
@@ -89,6 +89,67 @@ describe("CSS Custom Highlight による選択の描画", () => {
     expect(highlightRanges().length).toBe(2);
     select(2, 2);
     expect(highlightRanges().length).toBe(0);
+  });
+
+  // Doc(Paragraph("あ", Ruby(RubyBase("漢"), RubyText("かん")), "い"))
+  // 位置: "あ" = 1..2 / rb の中身 = 4..5 / rt の中身 = 7..9 / "い" = 11..12
+  describe("インラインブロックの内側", () => {
+    function mountRuby(): EditorView {
+      return new EditorView(place, {
+        state: EditorState.create({
+          config: [basicSchema()],
+          doc: (schema) =>
+            schema.doc([
+              Paragraph.create([
+                Leaf.text("あ"),
+                Ruby.create([
+                  RubyBase.create([Leaf.text("漢")]),
+                  RubyText.create([Leaf.text("かん")]),
+                ]),
+                Leaf.text("い"),
+              ]),
+            ]),
+        }),
+      });
+    }
+
+    it("キャレットが rb の中にあると rb 全体が塗られる", () => {
+      view = mountRuby();
+      select(4, 4); // rb の内側の先頭
+      const ranges = highlightRanges();
+      expect(ranges.map((r) => r.toString())).toEqual(["漢"]);
+
+      // 塗る範囲が rb の矩形に収まっていること (境界に幅が無いので、Range の端の
+      // ノードは rb の外に出ることがある。見た目で確かめる)
+      const rb = view.dom.querySelector("rb") as HTMLElement;
+      const rbBox = rb.getBoundingClientRect();
+      const painted = ranges[0].getBoundingClientRect();
+      expect(painted.left).toBeGreaterThanOrEqual(rbBox.left - 1);
+      expect(painted.right).toBeLessThanOrEqual(rbBox.right + 1);
+      expect(painted.width).toBeGreaterThan(0);
+    });
+
+    it("rt の中なら rt 全体が塗られる", () => {
+      view = mountRuby();
+      select(8, 8); // "かん" の途中
+      expect(highlightRanges().map((r) => r.toString())).toEqual(["かん"]);
+    });
+
+    it("外側に出ると消える", () => {
+      view = mountRuby();
+      select(4, 4);
+      expect(highlightRanges().length).toBe(1);
+      select(2, 2); // ルビの手前 (画面上は 4 と同じ点)
+      expect(highlightRanges().length).toBe(0);
+    });
+
+    it("範囲を選んでいるときは今までどおり選択範囲だけ塗る", () => {
+      view = mountRuby();
+      select(4, 5); // rb の中の "漢" を選ぶ
+      expect(highlightRanges().map((r) => r.toString())).toEqual(["漢"]);
+      select(1, 12); // 全体
+      expect(highlightRanges().map((r) => r.toString())).toEqual(["あ漢かんい"]);
+    });
   });
 
   it("destroy すると塗りが残らない", () => {

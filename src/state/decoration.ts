@@ -1,4 +1,5 @@
 import type { ChangeSet } from "../doc";
+import { Facet } from "./facet";
 
 /** doc は変えずに見た目だけを足す。IME 変換中の下線がこれ */
 export interface InlineDecoration {
@@ -41,3 +42,6 @@ export class DecorationSet {
       .join("|");
   }
 }
+
+/** 描画に重ねる装飾。DOM を持たないので view ではなく state 側に置く */
+export const decorations: Facet<DecorationSet> = Facet.define<DecorationSet>();

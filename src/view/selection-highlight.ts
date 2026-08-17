@@ -2,7 +2,8 @@
 // そこでネイティブの選択は透明にし、model の選択を CSS Custom Highlight で塗る。
 // Highlight はブロックを跨いでも塗られる。
 
-import { blockOffsetRange } from "./coords";
+import { type Plot, Pos } from "../doc";
+import { blockPosRange } from "./dom-point";
 import type { EditorView } from "./view";
 
 export const SELECTION_HIGHLIGHT_NAME = "ecw-selection";
@@ -71,17 +72,18 @@ export class SelectionHighlighter {
     this.clear(highlight);
 
     const { from, to } = view.state.selection;
-    if (from === to) return;
+    if (from === to) {
+      // インラインブロックの内側と外側の端は画面上の同じ点なので、キャレットの位置だけでは
+      // 中にいることが見えない。囲んでいるブロックを丸ごと塗って見せる
+      this.addRange(view, highlight, inlineBlockContentRange(view.state.doc, from));
+      return;
+    }
 
     for (const block of view.textblocks) {
       const start = Math.max(from, block.contentFrom);
       const end = Math.min(to, block.contentTo);
       if (start >= end) continue;
-      const range = blockOffsetRange(
-        block.contentDOM,
-        block.text.posToOffset(start),
-        block.text.posToOffset(end),
-      );
+      const range = blockPosRange(block, start, end);
       this.ranges.push(range);
       highlight.add(range);
     }
@@ -92,8 +94,33 @@ export class SelectionHighlighter {
     if (highlight) this.clear(highlight);
   }
 
+  private addRange(
+    view: EditorView,
+    highlight: HighlightLike,
+    range: { from: number; to: number } | null,
+  ): void {
+    if (!range || range.from >= range.to) return;
+    const block = view.textblockAt(range.from);
+    if (!block) return;
+    const dom = blockPosRange(block, range.from, range.to);
+    this.ranges.push(dom);
+    highlight.add(dom);
+  }
+
   private clear(highlight: HighlightLike): void {
     for (const range of this.ranges) highlight.delete(range);
     this.ranges = [];
   }
+}
+
+/** その位置を囲む、一番内側のインラインブロックの中身の範囲。囲まれていなければ null */
+function inlineBlockContentRange(doc: Plot, pos: number): { from: number; to: number } | null {
+  if (pos < 0 || pos > doc.contentLength) return null;
+  const $pos = Pos.resolve(doc, pos);
+  for (let depth = $pos.depth; depth > 0; depth--) {
+    if ($pos.node(depth).type.cursorInsideBounds) {
+      return { from: $pos.start(depth), to: $pos.end(depth) };
+    }
+  }
+  return null;
 }

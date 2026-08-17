@@ -1,7 +1,15 @@
 import { Leaf, Mark, type Schema } from "../src/doc";
 import { isEditContextSupported } from "../src/ime/edit-context-api";
-import { composition } from "../src/plugins/composition";
-import { Blockquote, basicSchema, EmphasisDots, Paragraph, Strong } from "../src/schema-basic";
+import {
+  Blockquote,
+  basicSchema,
+  EmphasisDots,
+  Paragraph,
+  Ruby,
+  RubyBase,
+  RubyText,
+  Strong,
+} from "../src/schema-basic";
 import { EditorState } from "../src/state/state";
 import type { Transaction } from "../src/state/transaction";
 import { EditorView } from "../src/view/view";
@@ -9,6 +17,15 @@ import { EditorView } from "../src/view/view";
 const makeDoc = (schema: Schema) =>
   schema.doc([
     Paragraph.create([Leaf.text("EditContext で動くエディタの雛形です。")]),
+    // 中身を持つインライン Plot。開き / 閉じは EditContext のバッファでは 0 文字
+    Paragraph.create([
+      Leaf.text("ルビは "),
+      Ruby.create([
+        RubyBase.create([Leaf.text("振り仮名")]),
+        RubyText.create([Leaf.text("ふりがな")]),
+      ]),
+      Leaf.text(" のようなインラインブロックです。"),
+    ]),
     Paragraph.create([
       Leaf.text("日本語を入力すると "),
       Leaf.text("変換中の下線", Strong.addToSet(Mark.none)),
@@ -25,7 +42,7 @@ const makeDoc = (schema: Schema) =>
   ]);
 
 const state = EditorState.create({
-  config: [basicSchema(), composition()],
+  config: [basicSchema()],
   doc: makeDoc,
 });
 

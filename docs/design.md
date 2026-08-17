@@ -110,8 +110,9 @@ doc                             DOM                        EditContext
 - 全ブロックに EditContext を作って attach し、そのブロックの全文をバッファに持つ。
   非アクティブなブロックのバッファも state 更新に追従させる (フォーカス移動の瞬間に
   作り直すと、その時点の doc と IME の見るテキストがずれる余地が生まれるため)。
-- 全ブロックを editable にしておくことで、**クリックでのキャレット配置、ブロック内の
-  ドラッグ選択、行内の矢印キー移動はブラウザのネイティブ挙動がそのまま使える**。
+- 全ブロックを editable にしておくことで、**クリックでのキャレット配置とブロック内の
+  ドラッグ選択はブラウザのネイティブ挙動がそのまま使える**。
+  矢印キーだけは軸が書字方向で入れ替わるので自前で持つ (`input/arrow.ts`)。
 - アクティブな EditContext = フォーカス中のブロックの EditContext。
   ブロックを跨ぐキャレット移動は `el.focus()` によるフォーカス移動を伴う。
 
@@ -176,7 +177,47 @@ function buildTextblockMap(block: Plot, blockFrom: number): TextblockMap;
 | --- | --- |
 | テキストノード | そのままの文字列 |
 | インラインの atom (画像等) | `"￼"` (OBJECT REPLACEMENT CHARACTER) 1 文字 |
+| **インラインブロック (ルビ等)** | **中身を展開。開き / 閉じは 0 文字** |
 | ハードブレーク | `"\n"` 1 文字 (M1) |
+
+### インラインブロック
+
+中身を持つインライン Plot (`inline: true` + `inlineContent`)。ルビがその代表で、
+`Ruby(RubyBase, RubyText)` の 3 つがそれぞれインラインブロックになる。
+
+EditContext を張るのはテキストブロックだけなので、**インラインブロックは自分のバッファを
+持たず、外側のテキストブロックのバッファに中身が展開される**。開きと閉じのトークンは
+**0 文字**に写す。バッファは DOM のテキストと一致していなければならず (`view/coords.ts` が
+`Range.toString()` で測るため)、要素の境界に対応する文字が DOM に無いからである。
+
+読み (`<rt>`) の中身もバッファに乗る。矢印で `<rb>` を抜けると次は `<rt>` の中に入り、
+IME から見えるテキストにも読みが含まれる。**これは意図した挙動**で、読みも選択・編集の
+対象にするために採っている (`<rt>` を atom 扱いにしてバッファから外す選択肢もあるが、
+そうすると読みが編集できなくなる)。
+
+wordgard は `cursorInsideBounds` を持つインラインブロックの境界を半角スペース 1 文字に
+写して、内側の端にもキャレット位置を作っている。こちらはその写像を採らない代わりに、
+`TextblockMap.offsetToPos(offset, bias)` で「1 つのオフセットに当たる複数の doc 位置」の
+どちらを採るかを呼び出し側が選ぶ。
+
+- 既定 (`bias = -1`) は外側
+- 範囲の書き換えは `from` を内側 (`bias = 1`)、`to` を外側で挟む。こうするとバッファ上の
+  範囲がちょうど文字の範囲になり、ルビの中の変換が構造を壊さない (`ime/manager.ts`)
+
+### 内側の端のキャレット
+
+`cursorInsideBounds` を持つインラインブロックには、**内側の端にもキャレット位置がある**
+(`<rb>` / `<rt>` に付ける。`<ruby>` 自身には付けない — rb と rt の間に止まる必要はない)。
+内側の端と外側の端は画面上の同じ点なので、キャレットの見た目は変わらない。違うのは
+「次に打った文字がルビの中に入るか外に入るか」だけ。
+
+DOM だけでは区別が付かないので、3 か所で支えている。
+
+| 場所 | やっていること |
+| --- | --- |
+| `input/arrow.ts` の `caretStops` | 矢印の移動をバッファのオフセットではなく **doc 位置**で刻む。留まれる位置を文書順に並べ、その中で 1 つ進む |
+| `view/view.ts` の `onSelectionChange` | 読み戻した選択が model と同じ DOM 点を指すだけなら、model が持っている方を残す (そうしないと非同期の `selectionchange` で外側に潰される) |
+| `ime/manager.ts` の `textupdate` | EditContext が言う範囲が今の選択と同じなら、選択の doc 位置をそのまま使う |
 
 マークはフラット文字列に影響しない (装飾はテキストの見た目だけを変える)。
 内部表現はセグメント配列 `{ docFrom, docTo, offset, length }[]` + 二分探索。
@@ -197,8 +238,9 @@ function buildTextblockMap(block: Plot, blockFrom: number): TextblockMap;
 | **選択がブロックを跨ぐ状態での削除・入力** | `beforeinput` で乗っ取り、自前で範囲削除してから挿入 |
 | Enter | `keydown` でブロック分割 → 新ブロックの EC を作り `focus()` |
 | Mod-b / Mod-i | `keydown` |
-| ブロック内のキャレット移動・選択 | ネイティブ。`selectionchange` で model に取り込む |
-| **ブロック境界を跨ぐ矢印キー移動** | `keydown` で「キャレットがブロックの端にいるか」を判定し、隣接ブロックへ `focus()` + キャレット設定 |
+| クリック・ドラッグによるキャレット移動 | ネイティブ。`selectionchange` で model に取り込む |
+| **矢印キーによる移動 (修飾なし)** | `keydown` で全部自前 (`input/arrow.ts`)。物理キーを論理方向に直し、inline 軸は grapheme 単位、block 軸は行の矩形から引く。ブロックの端まで来たら隣接ブロックへ `focus()` + キャレット設定 |
+| Mod / Alt + 矢印 (単語単位・行頭行末・ページ) | まだネイティブ。縦書きでは軸がずれる (M1) |
 | **ブロックを跨ぐドラッグ選択** | `mousedown` + `mousemove` を自前で追う (`input/pointer.ts`)。跨いだ瞬間だけ主導権を取り、DOM の選択との同期を止める |
 | **選択の描画** | ネイティブの選択描画は透明にして、model の選択を CSS Custom Highlight API で塗る (`view/selection-highlight.ts`) |
 
@@ -396,7 +438,6 @@ editcontext-wysiwyg/
 │   │   ├── view.ts         EditorView: dispatch と更新ループ
 │   │   ├── block-view.ts   ブロック 1 つ分の描画状態 (TextblockView / ContainerView)
 │   │   ├── render.ts       doc → DOM (ノード参照の等価性で差分描画)
-│   │   ├── decoration.ts   インライン装飾
 │   │   ├── dom-selection.ts model selection ↔ DOM Selection + focus
 │   │   ├── selection-highlight.ts 選択の描画 (CSS Custom Highlight)
 │   │   └── coords.ts       DOM 位置 ↔ オフセット、矩形、行頭行末の判定
@@ -408,14 +449,12 @@ editcontext-wysiwyg/
 │   ├── input/
 │   │   ├── keymap.ts       keydown → コマンド (主。跨ぎ移動 / Mod-b,i / Enter)
 │   │   ├── beforeinput.ts  受け皿。境界削除 / プラットフォーム固有キー / 将来の貼り付け
-│   │   ├── boundary.ts     ブロック境界の判定と跨ぎ移動
+│   │   ├── arrow.ts        矢印キーの移動 (論理方向への変換 + grapheme / 行の移動)
+│   │   ├── boundary.ts     隣のブロックに入るときの着地位置
 │   │   └── pointer.ts      ドラッグ選択 (ブロックを跨いだときだけ主導権を取る)
 │   ├── commands/
 │   │   └── base.ts         コマンド (状態を見て TransactionSpec を返す)
-│   ├── view/extension.ts   view が読む facet (decorations / handleKeyDown / handleBeforeInput)
-│   └── plugins/
-│       ├── composition.ts  変換中の decoration (Field + Annotation)
-│       └── history.ts      undo / redo (M1)
+│   └── view/extension.ts   view が読む facet (handleKeyDown / handleBeforeInput)
 └── test/
     ├── model/*.test.ts     node 環境
     └── browser/*.test.ts   Chromium 実機
@@ -498,7 +537,8 @@ class BlockEditContext {
 - ブロック内の Backspace / Delete (EditContext 経由)
 - **ブロック先頭の Backspace / 末尾の Delete によるブロック結合** (自前)
 - Enter によるブロック分割 + 新ブロックへのフォーカス移動
-- マウス・矢印キーによる選択。**ブロック境界を跨ぐ矢印キー移動とドラッグ選択** (自前)
+- **矢印キーによる移動は全部自前** (grapheme 単位 / 行の矩形 / ブロック境界の跨ぎ)。
+  マウスの選択はネイティブで、**ブロックを跨ぐドラッグだけ自前**
 - 選択の描画 (ネイティブの選択は透明にして CSS Custom Highlight で塗る)
 - `Mod-b` / `Mod-i` によるマークのトグル
 - デバッグパネル: doc の JSON、各ブロックの EditContext バッファと選択、
@@ -655,14 +695,23 @@ Wordgard にあって、雛形では省いたもの:
 
 ```ts
 const state = EditorState.create({
-  config: [basicSchema(), composition()],
+  config: [basicSchema()],
   doc: (schema) => schema.doc([...]),
 });
 ```
 
 機能の足し方は「facet に値を供給する extension を config に並べる」だけになる。
 たとえば IME 変換中の下線は、装飾を持つフィールドと、それを `decorations` facet に
-流す `provide` の組で書かれている。
+流す `provide` の組で書かれている (`state/composition.ts`)。
+
+ただし **composition だけは `config` に書かず、`EditorState.create` が必ず入れる**。
+contenteditable なら変換中の下線はブラウザが描くが、EditContext は描かずに
+`textformatupdate` で範囲を渡してくるだけなので、これを出さない構成は
+「機能が少ない」のではなく日本語入力が壊れている状態になる。
+
+`decorations` facet と `DecorationSet` は `state/decoration.ts` に置いてある。
+中身は `{from, to, class?, style?}` と ChangeSet による位置の写像だけで DOM に触らず、
+これを state 側に置いたことで composition が view を import せずに済んでいる。
 
 ```ts
 export const compositionField = Field.define<CompositionState>({
