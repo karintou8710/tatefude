@@ -9,7 +9,13 @@ export interface Editor {
   id: string;
   name: string;
   description: string;
-  vertical: boolean;
+  /**
+   * ペインの組み方。
+   * - `horizontal` 横書き
+   * - `vertical`   縦書き。行が左へ伸びるので横スクロール
+   * - `paginated`  縦書きを段組みでページに割る。段が下へ積まれるので縦スクロール
+   */
+  layout: "horizontal" | "vertical" | "paginated";
   /** そのエディタ固有の書式。CSS Module のクラス */
   className?: string;
   config: Extension;

@@ -1,7 +1,7 @@
 import type { Plot, Pos } from "../doc";
 import { resolveNear, Selection, TextSelection } from "../state/selection";
 import type { TextblockView } from "../view/block-view";
-import { caretPointFromCoords, isOnEdgeLine, lineAdvanceOf, writingModeOf } from "../view/coords";
+import { caretPointFromCoords, isOnEdgeLine, lineBandsOf, writingModeOf } from "../view/coords";
 import { caretRectFor, domPointToBlockPos } from "../view/dom-point";
 import type { EditorView } from "../view/view";
 import { alongOf, crossToAdjacentBlock, snapToAlong } from "./boundary";
@@ -215,7 +215,12 @@ function setHead(view: EditorView, head: number, extend: boolean, along?: number
   return true;
 }
 
-/** ブロック方向へ 1 行ぶんずらした点を引く。その行がブロックの外なら null */
+/**
+ * 隣の行の、インライン方向で `along` に一番近い位置。無ければ null。
+ *
+ * 座標を 1 行送りぶんずらす方法は段組みで破綻する — 段の最後の行の隣は、次の段の
+ * **先頭**にあってブロック方向もインライン方向も飛ぶ。行の矩形を文書順に並べて隣を採る。
+ */
 function posOnNextLine(
   doc: Plot,
   block: TextblockView,
@@ -223,15 +228,23 @@ function posOnNextLine(
   backward: boolean,
   along: number,
 ): number | null {
-  const { vertical, blockForwardIsPositive } = writingModeOf(block.contentDOM);
+  const { vertical } = writingModeOf(block.contentDOM);
   const caret = caretRectFor(block, pos);
-  // キャレットの太さでずらすと行の中の余りに落ちて同じ行へ戻るので、行送りで刻む
-  const lineSize = lineAdvanceOf(block.contentDOM, vertical ? caret.width : caret.height);
-  const towardNegative = blockForwardIsPositive ? backward : !backward;
+  const bands = lineBandsOf(block.contentDOM);
   const center = vertical ? (caret.left + caret.right) / 2 : (caret.top + caret.bottom) / 2;
-  const blockCoord = center + (towardNegative ? -lineSize : lineSize);
+  const index = bands.findIndex(
+    (band) => center >= band.blockStart - 1 && center <= band.blockEnd + 1,
+  );
+  const next = bands[index + (backward ? -1 : 1)];
+  if (index < 0 || !next) return null;
 
-  const point = caretPointFromCoords(vertical ? blockCoord : along, vertical ? along : blockCoord);
+  // 行の中に押し込む。端ちょうどだと隣の行に当たることがあるので 1px 内側
+  const inline = Math.min(Math.max(along, next.start + 1), next.end - 1);
+  const blockCoord = (next.blockStart + next.blockEnd) / 2;
+  const point = caretPointFromCoords(
+    vertical ? blockCoord : inline,
+    vertical ? inline : blockCoord,
+  );
   if (!point || !block.contentDOM.contains(point.node)) return null;
   return snapToAlong(doc, block, domPointToBlockPos(block, point.node, point.offset), along);
 }

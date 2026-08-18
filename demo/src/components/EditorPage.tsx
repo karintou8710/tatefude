@@ -1,63 +1,77 @@
-import { useCallback, useState } from "react";
-import { EditorContent, useEditor } from "tatefude-react";
+import type React from "react";
+import { useRef } from "react";
+import { updateListener } from "tatefude";
+import { EditorContent, useEditor, useEditorState } from "tatefude-react";
 import type { Editor } from "../editors";
-import { useDebugOpen } from "./DebugOpen";
-import { type DebugEvent, DebugPanel } from "./DebugPanel";
 import styles from "./EditorPage.module.css";
+import { usePageCount, usePageScroll } from "./pagination";
 import { Toolbar } from "./Toolbar";
-
-const MAX_EVENTS = 25;
 
 /** どのページも中身はこれ。違うのは渡すエディタだけ */
 export function EditorPage({ editor: spec }: { editor: Editor }) {
-  const [events, setEvents] = useState<readonly DebugEvent[]>([]);
-  const debug = useDebugOpen();
-
-  const push = useCallback((event: DebugEvent) => {
-    setEvents((current) => [event, ...current].slice(0, MAX_EVENTS));
-  }, []);
+  // ポインタで選んだ更新かどうか。ページ送りの抑止に使う
+  const pointerSelect = useRef(false);
 
   const editor = useEditor(
     {
-      config: spec.config,
+      config: [
+        spec.config,
+        updateListener.of((update) => {
+          pointerSelect.current = update.tr?.isUserEvent("select.pointer") ?? false;
+        }),
+      ],
       doc: spec.doc,
-      // デバッグパネル用の計測。ここだけは view を直に触る必要がある
       onCreate(view) {
-        view.ime.debug = (type, detail) => push({ type, detail });
-        const onKeyDown = (event: KeyboardEvent) =>
-          push({
-            type: "keydown",
-            // isComposing は EditContext 経路では常に false。IME が処理したキーかどうかは
-            // keyCode 229 でしか分からないので、並べて出しておく
-            detail: {
-              key: event.key,
-              keyCode: event.keyCode,
-              isComposing: event.isComposing,
-              composing: view.ime.composing,
-            },
-          });
-        view.dom.addEventListener("keydown", onKeyDown, true);
         view.focus();
-        return () => view.dom.removeEventListener("keydown", onKeyDown, true);
       },
     },
     [spec.id],
   );
 
+  // 段組みでページに割るときだけ、紙の高さを測って決める
+  const paginated = spec.layout === "paginated";
+  const doc = useEditorState(editor, (state) => state.doc);
+  const pages = usePageCount(editor, paginated, doc);
+
+  // ページを移ったらそのページ全体を出す。張り付いたツールバーのぶんだけ下げる
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const selection = useEditorState(editor, (state) => state.selection);
+  usePageScroll(editor, paginated, selection, toolbarRef, pointerSelect);
+
   return (
     <main className={styles.main}>
-      <div>
-        <Toolbar editor={editor} items={spec.toolbar ?? []} />
+      <div className={styles.column}>
+        <div ref={toolbarRef} className={styles.toolbarBar}>
+          <Toolbar editor={editor} items={spec.toolbar ?? []} />
+        </div>
         <section className={paneClass(spec)}>
           <EditorContent editor={editor} className={styles.host} />
+          <PageNumbers count={pages} />
         </section>
       </div>
-      <DebugPanel editor={editor} events={events} open={debug.open} onToggle={debug.toggle} />
     </main>
   );
 }
 
-/** ペインの見た目は「共通 + 縦書き + そのエディタ固有」の重ね合わせ */
+/**
+ * ノンブル。段はブロックではないので counter で数えられず、位置も要素として存在しない。
+ * ページ数は usePageCount が持っているので、その数だけ置いて周期で並べる。
+ */
+function PageNumbers({ count }: { count: number }) {
+  if (!count) return null;
+  return (
+    <div className={styles.pageNumbers} aria-hidden="true">
+      {Array.from({ length: count }, (_, index) => index + 1).map((page) => (
+        <span key={page} style={{ "--page-index": page - 1 } as React.CSSProperties}>
+          {page}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** ペインの見た目は「共通 + 組み方 + そのエディタ固有」の重ね合わせ */
 function paneClass(spec: Editor): string {
-  return [styles.pane, spec.vertical && styles.vertical, spec.className].filter(Boolean).join(" ");
+  const layout = spec.layout === "vertical" ? styles.vertical : styles[spec.layout];
+  return [styles.pane, layout, spec.className].filter(Boolean).join(" ");
 }

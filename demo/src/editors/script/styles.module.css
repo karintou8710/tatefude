@@ -6,26 +6,27 @@
    番号は counter で出すので DOM のテキストには入らない。 */
 .script {
   --band: 52px;
+  /* 横罫と本文の間。横罫は content box 基準で引くので、ここを 0 にすると罫に文字が付く */
+  --band-gap: 6px;
+  /* 本文が始まる位置 (行頭からの字下げ)。字下げする型はここに足す */
+  --text-start: calc(var(--band) + var(--band-gap));
   /* 人物名の枠。セリフの開始位置をここで決める */
   --speaker: 8em;
   /* ト書きはセリフ本文より深く入れる。主はセリフなので、ト書きが一段引っ込む */
   --action: calc(var(--speaker) + 2em);
-  /* 行の長さは紙いっぱい。EditorPage 側の既定 (420px) を変数で上書きする */
-  --line-length: 100%;
-  /* 用紙は**高さ基準**で決める。aspect-ratio は幅 ÷ 高さなので、grid の stretch で幅が
-     伸びるたび高さがその 1.15 倍に膨らみ、画面に収まらない縦長の紙になる。
-     縦書きは行の長さ = 紙の高さなので、高さを決めて幅を比から出すのが自然。
-     justify-self で stretch を切らないと幅が auto にならず、比が効かない。 */
+  /* 横長の紙。縦書きなので高さが行の長さ、幅が行の積み方向 (= 1 ページの行数)。
+     段組みが行の切れ目で割ってくれるので、行送りのグリッドに乗せる必要はない */
+  /* 行送り。1 ページに何行入るかはこれと紙の幅で決まる */
+  --line-advance: 32px;
+  --sheet-height: min(72vh, 680px);
+  --sheet-width: calc(var(--sheet-height) * 1.6);
+  /* 紙の左右の余白 (行の積み方向) */
+  --paper-margin: 40px;
+  /* 本文の領域 = 紙から上下の余白を引いたぶん。段組みの 1 段がこれになる */
+  --page-length: calc(var(--sheet-height) - var(--page-pad) * 2);
+
   justify-self: center;
-  height: min(78vh, 780px);
-  aspect-ratio: 0.87;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 2px;
-  box-shadow: 2px 2px 8px rgb(0 0 0 / 0.14);
-  /* 紙からはみ出した分は切らずに送る。縦書きなので溢れるのは左 = 横スクロール */
-  overflow-x: auto;
-  overflow-y: hidden;
+  width: var(--sheet-width);
 }
 
 .script :global(.tf-editor) {
@@ -33,27 +34,27 @@
   box-sizing: border-box;
   min-height: 0;
   /* 左右は紙の左右の余白 (縦書きでは行の積み方向)。柱の縦罫が紙の縁に付かないよう広めに */
-  padding: 6px 28px 14px;
-  position: relative;
+  padding: var(--pad-head) var(--paper-margin) var(--pad-foot);
   font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
   font-size: 16px;
-  line-height: 2;
+  line-height: var(--line-advance);
   color: #223;
-}
 
-/* 全体に渡す横罫。柱の縦罫がこの上へ突き出る */
-.script :global(.tf-editor)::before {
-  content: "";
-  position: absolute;
-  inset-inline-start: var(--band);
-  inset-block: 0;
-  border-inline-start: 1px solid #111;
+  /* ページごとの横罫。**段は要素ではないので ::before では 1 本しか引けない**
+     (絶対配置は段に割れず、段組み全体を基準にする)。ページの周期で繰り返す背景にすれば、
+     段が何本になっても付いてくる。紙と机は共通の --page-bg に重ねる */
+  --rule-bg: repeating-linear-gradient(
+    to bottom,
+    transparent 0 var(--band),
+    #111 var(--band) calc(var(--band) + 1px),
+    transparent calc(var(--band) + 1px) calc(var(--page-length) + var(--gutter))
+  );
 }
 
 /* 本文 (セリフ・ト書き) は横罫の下から始める */
 .script :global([data-tf-textblock]) {
   margin: 0;
-  padding-inline-start: var(--band);
+  padding-inline-start: var(--text-start);
 }
 
 /* 柱。左右の縦罫と上端で、横罫との間に番号の箱ができる */
@@ -91,14 +92,14 @@
 /* ト書きは全体を字下げ。padding-inline-start は縦書きでは上なので、
    折り返した行も同じ位置から始まる = ブロックごと下がる */
 .script :global(.script-action) {
-  padding-inline-start: calc(var(--band) + var(--action));
+  padding-inline-start: calc(var(--text-start) + var(--action));
 }
 
 /* セリフは人物名を頭に出し、折り返しは名前の下へぶら下げる。
    padding で全体を下げ、text-indent の負値で 1 行目だけ引き戻す。
    引き戻す量が人物名の枠と同じなので、発話の開始位置は名前の長さに依らず揃う */
 .script :global(.script-dialogue) {
-  padding-inline-start: calc(var(--band) + var(--speaker));
+  padding-inline-start: calc(var(--text-start) + var(--speaker));
   text-indent: calc(-1 * var(--speaker));
 }
 
@@ -129,4 +130,31 @@
    消すのはこちらだけ。選択の塗り (tf-selection) まで消すと選んだ範囲が見えなくなる */
 .script :global(.script-speaker)::highlight(tf-inline-active) {
   background-color: transparent;
+}
+
+/* スクロールで見る版。紙にしないので幅は枠いっぱい、行の長さだけ決める */
+.scroll {
+  --line-length: min(72vh, 680px);
+
+  /* 縦書きでは width が**行の積み方向**の長さ。auto にすると中身のぶんだけ伸びて、
+     ページ全体が横スクロールしてしまう。枠を決めて、この箱の中でスクロールさせる */
+  width: min(100%, 880px);
+  /* 親は横書きなので、物理の左右で中央に寄る */
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.scroll :global(.tf-editor) {
+  position: relative;
+  padding: 12px var(--paper-margin);
+}
+
+/* 横罫。段組みが無いので周期で繰り返す必要がなく、全長に 1 本引ける。
+   縦書きでは inset-inline-start が行頭 (上) からの距離、inset-block が左右 */
+.scroll :global(.tf-editor)::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: var(--band);
+  inset-block: 0;
+  border-inline-start: 1px solid #111;
 }

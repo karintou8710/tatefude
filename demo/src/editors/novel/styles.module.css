@@ -1,10 +1,50 @@
-/* 小説。字下げは doc 側の全角空白でやっているので、ここでは組みだけ整える */
+/* 小説。字下げは doc 側の全角空白でやっているので、ここでは組みだけ整える。
+   台本と同じく段組みでページに割る (寸法は EditorPage 側の .paginated が持つ) */
+.novel {
+  /* 文庫の組み。**紙の実寸ではなく、字数と行数だけ**を合わせる。
+     ライトノベル (電撃文庫など) でよく挙がる 42 字 × 17 行 */
+  --chars: 42;
+  --lines: 17;
+  --font: 17px;
+  /* 行送りは字送りの 1.75 倍。文庫の目安 */
+  --line-advance: calc(var(--font) * 1.75);
+  --paper-margin: 40px;
+
+  /* 縦書きでは inline 軸が行の長さ。全角 1 文字 = 1em なので、字数がそのまま長さ */
+  --page-length: calc(var(--font) * var(--chars));
+  /* block 軸は行の積み方向。1 ページの行数がそのまま紙の幅になる */
+  --sheet-width: calc(var(--line-advance) * var(--lines) + var(--paper-margin) * 2);
+
+  justify-self: center;
+  width: var(--sheet-width);
+}
+
 .novel :global(.tf-editor) {
+  box-sizing: border-box;
+  padding: var(--pad-head) var(--paper-margin) var(--pad-foot);
+  color: #223;
   font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
-  font-size: 17px;
-  line-height: 2.1;
+  font-size: var(--font);
+  /* 長さで与える。倍率だと字数と行数の計算が font-size に引きずられる */
+  line-height: var(--line-advance);
 }
 
 .novel :global([data-tf-textblock]) {
   margin: 0;
+}
+
+/* スクロールで見る版。紙にしないので、幅は枠いっぱい・行の長さだけ決める */
+.scroll {
+  --line-length: min(76vh, 720px);
+
+  /* 縦書きでは width が**行の積み方向**の長さ。auto にすると中身のぶんだけ伸びて、
+     ページ全体が横スクロールしてしまう。枠を決めて、この箱の中でスクロールさせる */
+  width: min(100%, 760px);
+  /* 親は横書きなので、物理の左右で中央に寄る */
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.scroll :global(.tf-editor) {
+  padding: 24px 32px;
 }

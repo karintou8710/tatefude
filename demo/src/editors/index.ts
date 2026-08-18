@@ -1,12 +1,12 @@
 import { horizontal } from "./horizontal";
-import { novel } from "./novel";
-import { script } from "./script";
+import { novel, novelScroll } from "./novel";
+import { script, scriptScroll } from "./script";
 import type { Editor } from "./types";
 
-export { horizontal } from "./horizontal";
-export { novel } from "./novel";
-export { script } from "./script";
 export type { Editor } from "./types";
 
-/** ナビの並び順 */
-export const editors: readonly Editor[] = [horizontal, novel, script];
+/** ナビとルートの唯一の出どころ。並び順もこれ */
+export const editors: readonly Editor[] = [horizontal, novel, novelScroll, script, scriptScroll];
+
+/** 入口。id を持たない URL はここへ送る */
+export const home = `/${editors[0].id}`;

@@ -45,3 +45,10 @@ body {
   padding-inline-start: 12px;
   border-inline-start: 3px solid var(--border);
 }
+
+/* キャレットがルビの読みの中にいる印は出さない。帯が細いので、塗ると小さな文字が読みにくい。
+   キャレットは読みの帯の中に立つので、中にいることは位置で分かる。
+   消すのは tf-inline-active だけ。選択の塗り (tf-selection) まで消すと選んだ範囲が見えなくなる */
+.tf-editor rt::highlight(tf-inline-active) {
+  background-color: transparent;
+}

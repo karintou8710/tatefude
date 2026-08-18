@@ -9,8 +9,7 @@ import {
   tcyExtension,
 } from "tatefude";
 import type { ToolbarItem } from "../../components/Toolbar";
-import { rubyItem } from "../common";
-import { tcyItem } from "../vertical";
+import { rubyItem, tcyItem } from "../toolbar-items";
 import { Action, actionExtension, setAction } from "./action";
 import { Dialogue, dialogueExtension, setDialogue } from "./dialogue";
 import { SceneHeading, sceneHeadingExtension, setSceneHeading } from "./scene-heading";

@@ -213,3 +213,42 @@ export function isOnEdgeLine(blockDOM: HTMLElement, offset: number, direction: -
   const physical = blockForwardIsPositive ? direction : -direction;
   return physical < 0 ? caretStart - flow.start <= tolerance : flow.end - caretEnd <= tolerance;
 }
+
+/** 行 1 本ぶんの帯。ブロック方向の位置と、インライン方向の範囲 */
+export interface LineBand {
+  blockStart: number;
+  blockEnd: number;
+  start: number;
+  end: number;
+}
+
+/**
+ * ブロックの行を文書順に並べる。**段組みでは行が等間隔に並ばない**ので、
+ * 「1 行送りぶん隣」の座標では次の行に当たらない。矩形から直に拾う。
+ */
+export function lineBandsOf(blockDOM: HTMLElement): LineBand[] {
+  const { vertical } = writingModeOf(blockDOM);
+  const range = document.createRange();
+  range.selectNodeContents(blockDOM);
+  const bands: LineBand[] = [];
+  for (const rect of range.getClientRects()) {
+    if (!rect.width && !rect.height) continue;
+    const band = {
+      blockStart: vertical ? rect.left : rect.top,
+      blockEnd: vertical ? rect.right : rect.bottom,
+      start: vertical ? rect.top : rect.left,
+      end: vertical ? rect.bottom : rect.right,
+    };
+    // 同じ行がルビや箱で複数の矩形に割れる。ブロック方向が重なっていれば同じ行
+    const last = bands[bands.length - 1];
+    if (last && band.blockStart < last.blockEnd - 1 && band.blockEnd > last.blockStart + 1) {
+      last.blockStart = Math.min(last.blockStart, band.blockStart);
+      last.blockEnd = Math.max(last.blockEnd, band.blockEnd);
+      last.start = Math.min(last.start, band.start);
+      last.end = Math.max(last.end, band.end);
+    } else {
+      bands.push(band);
+    }
+  }
+  return bands;
+}

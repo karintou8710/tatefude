@@ -1,31 +1,31 @@
 import { Blockquote, basicSchema, history, Paragraph, Ruby, RubyBase, RubyText } from "tatefude";
-import { rubyItem } from "../common";
 import { bouten, ruby, strong, text } from "../content";
+import { rubyItem } from "../toolbar-items";
 import type { Editor } from "../types";
 
 export const horizontal: Editor = {
   id: "horizontal",
   name: "横書き",
   description: "既定のスキーマ。段落・引用・ルビ・マーク",
-  vertical: false,
+  layout: "horizontal",
   config: [basicSchema(), history()],
   toolbar: [rubyItem],
   doc: (schema) =>
     schema.doc([
       Paragraph.create([text("EditContext で動くエディタの雛形です。")]),
       Paragraph.create([
-        text("日本語を入力すると "),
+        text("日本語を入力すると"),
         strong("変換中の下線"),
-        text(" が "),
+        text("が"),
         bouten("傍点"),
-        text(" と decoration で描かれます。"),
+        text("と decoration で描かれます。"),
       ]),
       Paragraph.create([
-        text("ルビは "),
+        text("ルビは"),
         ruby("振り仮名", "ふりがな"),
-        text(" のようなインラインブロックです。読みが空だと "),
+        text("のようなインラインブロックです。読みが空だと"),
         Ruby.create([RubyBase.create([text("代役")]), RubyText.create([])]),
-        text(" が出ます。"),
+        text("が出ます。"),
       ]),
       Blockquote.create([
         Paragraph.create([text("引用はブロックを入れ子にしたものです。")]),

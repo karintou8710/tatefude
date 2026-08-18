@@ -1,13 +1,8 @@
 import { Navigate, NavLink, type NavLinkRenderProps, Route, Routes } from "react-router";
 import { isEditContextSupported } from "tatefude";
 import styles from "./App.module.css";
-import { DebugOpenProvider } from "./components/DebugOpen";
-import { editors } from "./editors";
-import { HorizontalPage } from "./pages/HorizontalPage";
-import { NovelPage } from "./pages/NovelPage";
-import { ScriptPage } from "./pages/ScriptPage";
-
-const home = "/horizontal";
+import { editors, home } from "./editors";
+import { EditorRoute } from "./pages/EditorRoute";
 
 /** ヘッダとルート定義だけ。ページごとの中身は pages/ が持つ */
 export function App() {
@@ -35,15 +30,11 @@ export function App() {
           ))}
         </nav>
       </header>
-      <DebugOpenProvider>
-        <Routes>
-          <Route path="/horizontal" element={<HorizontalPage />} />
-          <Route path="/novel" element={<NovelPage />} />
-          <Route path="/script" element={<ScriptPage />} />
-          {/* / と知らない URL は先頭のページへ */}
-          <Route path="*" element={<Navigate to={home} replace />} />
-        </Routes>
-      </DebugOpenProvider>
+      <Routes>
+        <Route path="/:id" element={<EditorRoute />} />
+        {/* / と知らない URL は先頭のページへ */}
+        <Route path="*" element={<Navigate to={home} replace />} />
+      </Routes>
     </>
   );
 }

@@ -1,9 +1,24 @@
-/* 2 列目は auto。デバッグパネルを閉じるとつまみの幅まで縮み、エディタが広がる */
 .main {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) auto;
-  gap: 16px;
   align-items: start;
+}
+
+/* ツールバーの帯。**sticky はこの要素に掛ける** — ツールバー自身に掛けると、
+   可動域がそれを包む箱の中に閉じ込められて動かない。
+   body の padding-top のぶん上げて地の色で敷き直さないと、下の紙が透ける */
+/* grid の項目は min-width: auto なので、中身の min-content で膨らむ。縦書きの箱は
+   width が中身のぶんだけ伸びるため、これが無いとページ全体が横に溢れる */
+.column {
+  min-width: 0;
+}
+
+.toolbarBar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin-top: -16px;
+  padding: 16px 0 8px;
+  background: var(--bg);
 }
 
 .pane {
@@ -12,9 +27,14 @@
   background: var(--pane-bg);
 }
 
-/* 親の高さが決まっているとき (台本の用紙) だけ効く。auto の親では auto に落ちる */
+/* 親の高さが決まっているとき (縦書きの紙) だけ効く。auto の親では auto に落ちる */
 .host {
   height: 100%;
+}
+
+/* 段組みでは高さをエディタ自身が決めるので、host は縛らない */
+.pane.paginated .host {
+  height: auto;
 }
 
 /* 縦書き。writing-mode は継承するのでペインに掛ければエディタにも届く。
@@ -29,4 +49,105 @@
 .pane.vertical :global(.tf-editor) {
   min-height: 0;
   height: var(--line-length, 420px);
+}
+
+/* 縦書きを段組みでページに割る。段 = 1 ページで、段は下へ積まれるので縦にスクロールする。
+   **writing-mode をペインに掛けない**のがこの組み方の要。縦書きの箱では height が
+   インライン軸になり、ページの高さを決める column-width と同じ軸を二重に決めてしまう。 */
+.pane.paginated {
+  /* 1 枚の紙 = 本文の領域 + その上下の余白。紙と紙の間に机が見える。
+     段組みが持っているのは「段 (= 本文の領域)」と「段の隙間」だけなので、
+     隙間の内訳を余白 2 つ + 机に分けて背景で描き分ける */
+  --page-pad: 22px;
+  --sheet-gap: 26px;
+  --gutter: calc(var(--page-pad) * 2 + var(--sheet-gap));
+  /* 1 ページ目の上と最終ページの下にも同じ余白を付ける */
+  --pad-head: var(--page-pad);
+  --pad-foot: var(--page-pad);
+  --sheet-bg: #fff;
+  /* 紙と紙の間はページの地と同じ色。紙 (白) だけが浮いて見える */
+  --desk-bg: var(--bg);
+  /* 紙。段組みの隙間のうち「紙と紙の間」は塗らずに透かし、下の background-color を
+     そのまま見せる。色の出どころを 1 つにするため */
+  --page-bg: repeating-linear-gradient(
+    to bottom,
+    var(--sheet-bg) 0 calc(var(--page-length) + var(--page-pad)),
+    transparent calc(var(--page-length) + var(--page-pad))
+      calc(var(--page-length) + var(--page-pad) + var(--sheet-gap)),
+    var(--sheet-bg) calc(var(--page-length) + var(--page-pad) + var(--sheet-gap))
+      calc(var(--page-length) + var(--gutter))
+  );
+
+  /* スクロールは持たない。紙が全ページぶんの高さまで伸びて、ページ自体が流れる。
+     段組みの成立条件は block 軸 (幅) が確定していることだけで、高さは
+     usePageCount が直接与えるので、祖先の高さ制約は要らない */
+  position: relative;
+  background-color: var(--desk-bg);
+  /* 枠と影は「紙 1 枚」の見た目なので、全ページを囲む外枠には付けない。
+     付けると紙と紙の間 (地の色) まで枠の内側に入ってしまう */
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* ページの端でブロックを割れるようにする。既定 (2/2) は泣き別れを避ける値だが、
+   1〜2 行のブロック (台本のセリフ) が割れず丸ごと次のページへ送られ、ページ末尾が空く */
+.pane.paginated :global([data-tf-textblock]) {
+  orphans: 1;
+  widows: 1;
+}
+
+/* ノンブル。紙の下の余白に置く */
+.pane.paginated .pageNumbers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+.pane.paginated .pageNumbers span {
+  position: absolute;
+  inset-inline: 0;
+  /* i 枚目の本文が終わった直後 = その紙の下の余白 */
+  top: calc(
+    var(--pad-head) +
+    var(--page-index) *
+    (var(--page-length) + var(--gutter)) +
+    var(--page-length)
+  );
+  height: var(--page-pad);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: #8a8378;
+}
+
+.pane.paginated :global(.tf-editor) {
+  writing-mode: vertical-rl;
+  box-sizing: border-box;
+  /* block 軸 = 幅 を確定させる。1 段に入る行数はこれで決まる */
+  width: 100%;
+  min-height: 0;
+  /* inline 軸 = 高さ。**auto にすると段が割れない** — 段組みは使える高さで段数を
+     決めるので、高さを内容から決めると循環する。ページ数は usePageCount が測って入れる */
+  /* 段が並ぶのは content box なので、行頭 / 行末の padding を足し戻す。
+     忘れると 1 段が padding のぶんだけ縮み、ページごとにずれが積み上がる */
+  height: calc(
+    var(--page-count, 1) *
+    (var(--page-length) + var(--gutter)) -
+    var(--gutter) +
+    var(--pad-head, 0px) +
+    var(--pad-foot, 0px)
+  );
+  /* **column-width は使えない** — あれは最小値なので、ブラウザが段数を減らして 1 段を
+     大きくしてしまう (ページの高さが指定と違う値になる)。段数を直に指定すれば
+     1 段 = (高さ - 隙間) / 段数 = --page-length にちょうど収まる */
+  column-width: auto;
+  column-count: var(--page-count, 1);
+  column-gap: var(--gutter, 28px);
+  column-fill: auto;
+  /* 紙と机は共通。エディタ固有の罫は --rule-bg に入れてもらい、上に重ねる。
+     background-image をエディタ側で丸ごと上書きすると、詳細度でこちらが勝って消える */
+  background-image: var(--rule-bg, none), var(--page-bg);
+  background-origin: content-box;
 }
