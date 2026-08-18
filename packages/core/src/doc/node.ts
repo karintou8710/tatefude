@@ -324,7 +324,7 @@ class PlotType<Param = unknown> extends BaseType<Param> {
   get cursorInsideBounds(): boolean {
     return !!this.spec.cursorInsideBounds;
   }
-  /** 箱の中で行の進む向きが親と直交するか (縦中横) */
+  /** インラインブロックの中で行の進む向きが親と直交するか (縦中横) */
   get cursorAxisTurns(): boolean {
     return !!this.spec.cursorAxisTurns;
   }
@@ -516,26 +516,15 @@ export namespace Plot {
      */
     cursorInsideBounds?: boolean;
     /**
-     * 箱の中で**行の進む向きが親と直交する**か。縦中横 (`text-combine-upright`) のように、
-     * 縦書きの行の中でそこだけ横に組むものに付ける。
-     *
-     * 矢印キーの意味だけを変える。中にいる間は、親の行方向 (縦書きなら上下) が
-     * **箱を出る**向き、親のブロック方向 (左右) が**箱の中を進む**向きになる。
-     * 見た目どおりに動かないと、横に並んだ文字を上下キーで辿ることになる。
-     *
-     * `writing-mode` は継承したままなので computed style からは分からない。
-     * text-combine は描画の効果であって書字方向の切り替えではないため、型で言う必要がある。
+     * インラインブロックの中で行の向きが親と直交するか (縦中横)。矢印キーの意味だけが入れ替わる。
+     * text-combine は描画の効果で `writing-mode` は継承したままなので、型で言うしかない。
      */
     cursorAxisTurns?: boolean;
     /**
-     * content の先頭・末尾にキャレットを置けるか。既定は両方 true。
+     * content の端にキャレットを置けるか。既定は両方 true。
      *
-     * 先頭 (末尾) が固定のインラインブロックで埋まる型で false にする。その箱の外側は
-     * 内側の端と**同じ点に描かれる余り**で、そこで打つと箱の手前に文字が入ってしまう。
-     * 端が親のものである以上、箱の型ではなく**親の型**が持つ性質になる。
-     *
-     * 掛かるのはキャレット (空の選択) だけ。範囲の端としての content 先頭は
-     * 行全体の選択に要るので残る。
+     * 端が固定のインラインブロックで埋まる型で false にする。その外側は内側の端と同じ点に描かれる余りで、
+     * そこで打つとインラインブロックの手前に文字が入る。掛かるのはキャレットだけで、範囲の端には掛からない。
      */
     cursorAtContentStart?: boolean;
     cursorAtContentEnd?: boolean;

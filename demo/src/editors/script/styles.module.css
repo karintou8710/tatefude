@@ -32,7 +32,8 @@
   counter-reset: scene;
   box-sizing: border-box;
   min-height: 0;
-  padding: 6px 14px 14px;
+  /* 左右は紙の左右の余白 (縦書きでは行の積み方向)。柱の縦罫が紙の縁に付かないよう広めに */
+  padding: 6px 28px 14px;
   position: relative;
   font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
   font-size: 16px;
@@ -123,7 +124,7 @@
   content: "」";
 }
 
-/* キャレットが箱の中にいる印は、人物名では出さない。ルビと違って名前は常に行頭に立つので
+/* キャレットがインラインブロックの中にいる印は、人物名では出さない。ルビと違って名前は常に行頭に立つので
    中にいることが位置で分かる。ハイライトの見た目は**由来元の要素**で上書きできる。
    消すのはこちらだけ。選択の塗り (tf-selection) まで消すと選んだ範囲が見えなくなる */
 .script :global(.script-speaker)::highlight(tf-inline-active) {

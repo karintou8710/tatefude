@@ -51,7 +51,7 @@ export function renderBlockContent(
   decorations: readonly InlineDecoration[],
 ): void {
   contentDOM.textContent = "";
-  // 空のときの代役。インラインブロックとは別の属性にしてある — あちらは箱に大きさを
+  // 空のときの代役。インラインブロックとは別の属性にしてある — あちらは大きさを
   // 与えたいが、こちらは場所を取らせたくない (styles.ts を参照)
   const placeholder = block.type.placeholder;
   if (placeholder && !block.contentLength) {

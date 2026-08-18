@@ -1,16 +1,10 @@
 import type { Plot, Pos } from "../doc";
 import { resolveNear, Selection, TextSelection } from "../state/selection";
 import type { TextblockView } from "../view/block-view";
-import {
-  caretPointFromCoords,
-  caretRectAt,
-  domPointToBlockOffset,
-  isOnEdgeLine,
-  lineAdvanceOf,
-  writingModeOf,
-} from "../view/coords";
+import { caretPointFromCoords, isOnEdgeLine, lineAdvanceOf, writingModeOf } from "../view/coords";
+import { caretRectFor, domPointToBlockPos } from "../view/dom-point";
 import type { EditorView } from "../view/view";
-import { alongOf, crossToAdjacentBlock } from "./boundary";
+import { alongOf, crossToAdjacentBlock, snapToAlong } from "./boundary";
 
 export type ArrowKey = "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown";
 
@@ -64,14 +58,14 @@ export function handleArrow(view: EditorView, event: KeyboardEvent): boolean {
   if (!block) return false;
   const motion = arrowMotion(event.key, block.contentDOM);
 
-  // 縦中横のように行の向きが直交する箱の中では、軸の意味が入れ替わる
+  // 縦中横のように行の向きが直交するインラインブロックの中では、軸の意味が入れ替わる
   const turned = turnedBoxAt(view.state.selection.$head);
   if (turned) return moveInTurnedBox(view, event.key, motion, turned, event.shiftKey);
 
   return moveByArrow(view, motion, event.shiftKey);
 }
 
-/** キャレットを囲む、行の向きが直交する箱の外側の範囲。囲まれていなければ null */
+/** キャレットを囲む、行の向きが直交するインラインブロックの外側の範囲。囲まれていなければ null */
 function turnedBoxAt($head: Pos): { from: number; to: number } | null {
   for (let depth = $head.depth; depth > 0; depth--) {
     if ($head.node(depth).type.cursorAxisTurns) {
@@ -82,12 +76,8 @@ function turnedBoxAt($head: Pos): { from: number; to: number } | null {
 }
 
 /**
- * 直交する箱の中での移動。**親の軸をそのまま読み替える**。
- *
- * - 親の行方向 (縦書きなら上下) = 箱を出る。中は横に並んでいるので、上下で 1 文字ずつ
- *   辿らせても意味がない。箱ひとつを跨いで外に出す。
- * - 親のブロック方向 (左右) = 箱の中を進む。中は横組みなので右が先。端まで来たら
- *   `moveByUnit` がそのまま外の前後へ出す。
+ * 親の軸を読み替える。親の行方向 = インラインブロックを出る、親のブロック方向 = その中を進む。
+ * 横に並んだ文字を上下キーで 1 つずつ辿らせても意味がないため。
  */
 function moveInTurnedBox(
   view: EditorView,
@@ -97,7 +87,7 @@ function moveInTurnedBox(
   extend: boolean,
 ): boolean {
   if (motion.axis === "inline") return setHead(view, motion.backward ? box.from : box.to, extend);
-  // 箱の中は横組み左→右で固定 (text-combine が作る組み方)。物理キーがそのまま前後になる
+  // インラインブロックの中は横組み左→右で固定 (text-combine が作る組み方)。物理キーがそのまま前後になる
   return moveByUnit(view, key === "ArrowLeft", extend);
 }
 
@@ -146,7 +136,7 @@ function moveByUnit(view: EditorView, backward: boolean, extend: boolean): boole
  * ブロックの中で、キャレットが留まれる doc 位置を文書順に並べる。
  *
  * インラインブロックの内側の端は `cursorInsideBounds` を持つものだけに作る
- * (`<ruby>` 自身のように、中に直接キャレットが要らない箱があるため)。
+ * (`<ruby>` 自身のように、中に直接キャレットが要らないインラインブロックがあるため)。
  */
 function caretStops(block: Plot, contentFrom: number): number[] {
   const stops: number[] = [contentFrom];
@@ -173,7 +163,7 @@ function caretStops(block: Plot, contentFrom: number): number[] {
 
   collect(block, contentFrom, true);
 
-  // 端が固定の箱で埋まる型では、その外側は内側の端と同じ点に描かれる余りなので外す
+  // 端が固定のインラインブロックで埋まる型では、その外側は内側の端と同じ点に描かれる余りなので外す
   const type = block.type;
   if (!type.cursorAtContentStart || !type.cursorAtContentEnd) {
     const contentTo = contentFrom + block.contentLength;
@@ -192,15 +182,15 @@ function moveByLine(view: EditorView, backward: boolean, extend: boolean): boole
   const index = view.textblockIndexAt(selection.head);
   if (index < 0) return false;
   const block = view.textblocks[index];
-  const offset = block.text.posToOffset(selection.head);
 
   // 短い行を通ると位置が痩せるので、直前の行移動の目標をそのまま使う
   const goal = view.verticalGoal;
-  const along = goal?.head === selection.head ? goal.along : alongOf(block, offset);
+  const along = goal?.head === selection.head ? goal.along : alongOf(block, selection.head);
 
+  const offset = block.text.posToOffset(selection.head);
   if (!isOnEdgeLine(block.contentDOM, offset, backward ? -1 : 1)) {
-    const next = offsetOnNextLine(block, offset, backward, along);
-    if (next != null) return setHead(view, block.text.offsetToPos(next), extend, along);
+    const next = posOnNextLine(view.state.doc, block, selection.head, backward, along);
+    if (next != null) return setHead(view, next, extend, along);
   }
 
   const head = crossToAdjacentBlock(view, index, backward, along);
@@ -226,14 +216,15 @@ function setHead(view: EditorView, head: number, extend: boolean, along?: number
 }
 
 /** ブロック方向へ 1 行ぶんずらした点を引く。その行がブロックの外なら null */
-function offsetOnNextLine(
+function posOnNextLine(
+  doc: Plot,
   block: TextblockView,
-  offset: number,
+  pos: number,
   backward: boolean,
   along: number,
 ): number | null {
   const { vertical, blockForwardIsPositive } = writingModeOf(block.contentDOM);
-  const caret = caretRectAt(block.contentDOM, offset);
+  const caret = caretRectFor(block, pos);
   // キャレットの太さでずらすと行の中の余りに落ちて同じ行へ戻るので、行送りで刻む
   const lineSize = lineAdvanceOf(block.contentDOM, vertical ? caret.width : caret.height);
   const towardNegative = blockForwardIsPositive ? backward : !backward;
@@ -242,7 +233,7 @@ function offsetOnNextLine(
 
   const point = caretPointFromCoords(vertical ? blockCoord : along, vertical ? along : blockCoord);
   if (!point || !block.contentDOM.contains(point.node)) return null;
-  return domPointToBlockOffset(block.contentDOM, point.node, point.offset);
+  return snapToAlong(doc, block, domPointToBlockPos(block, point.node, point.offset), along);
 }
 
 const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });

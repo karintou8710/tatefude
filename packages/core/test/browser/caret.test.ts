@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Leaf, Node, Plot } from "../../src/doc";
-import { basicSchema, Doc, Paragraph, Ruby, RubyBase, RubyText } from "../../src/schema-basic";
+import { basicSchema, Doc, Paragraph, Ruby, RubyBase, RubyText } from "../../src/extensions";
 import { TextSelection } from "../../src/state/selection";
 import { EditorState, schemaElement } from "../../src/state/state";
 import { EditorView } from "../../src/view/view";
@@ -184,7 +184,7 @@ describe("キャレットの自前描画", () => {
     select(7, 7); // rt の内側の先頭。同じバッファオフセットに写る
     const atText = caretBox();
 
-    select(12, 12); // ruby の閉じの直後 = 箱の外
+    select(12, 12); // ruby の閉じの直後 = インラインブロックの外
     const afterRuby = caretBox();
 
     const rbBox = rb.getBoundingClientRect();
@@ -195,7 +195,7 @@ describe("キャレットの自前描画", () => {
     expect(atText?.bottom).toBeLessThanOrEqual(rtBox.bottom + 1);
     // ルビの帯は base より上にある
     expect(atText?.top).toBeLessThan(atBase?.top ?? 0);
-    // 箱を出たら行の高さのキャレットになる。rt の帯に閉じ込められない
+    // インラインブロックを出たら行の高さのキャレットになる。rt の帯に閉じ込められない
     const rubyBox = (view.dom.querySelector("ruby") as HTMLElement).getBoundingClientRect();
     expect(afterRuby?.left).toBeGreaterThanOrEqual(rubyBox.right - 1);
     expect(afterRuby?.bottom).toBeGreaterThanOrEqual(rbBox.bottom - 1);
@@ -239,6 +239,82 @@ describe("キャレットの自前描画", () => {
     view.destroy();
     expect(place.querySelector(".tf-caret-layer")).toBeNull();
   });
+});
+
+/**
+ * 空のインラインブロックの太さ。箱の block 軸の大きさは行送りぶんあるので、そのまま使うと
+ * line-height を広げたぶんだけキャレットが伸びる。atomic inline (inline-flex など) では
+ * 箱が丸ごと 1 行ぶんになるので、その差がそのまま出る。
+ */
+describe("空のインラインブロックのキャレット", () => {
+  const Field = Plot.define("Field", {
+    inline: true,
+    inlineContent: Leaf.Text,
+    cursorInsideBounds: true,
+    placeholder: "欄",
+    shape: { element: "span", attrs: { class: "test-field" } },
+  });
+
+  const Line = Plot.define("Line", {
+    inlineContent: true,
+    group: Node.Group.Content,
+    defaultBlock: true,
+    shape: { element: "p" },
+  });
+
+  let style: HTMLStyleElement;
+
+  beforeEach(() => {
+    style = document.createElement("style");
+    // 箱を行いっぱいに膨らませる。line-height と inline-flex の両方が効く形
+    style.textContent = ".test-field { display: inline-flex; min-inline-size: 8em; }";
+    document.head.appendChild(style);
+  });
+
+  afterEach(() => {
+    style.remove();
+  });
+
+  function mountField(vertical: boolean): EditorView {
+    place.style.writingMode = vertical ? "vertical-rl" : "horizontal-tb";
+    place.style.height = vertical ? "300px" : "";
+    place.style.fontSize = "16px";
+    place.style.lineHeight = "2";
+    return new EditorView(place, {
+      state: EditorState.create({
+        config: [Doc, Line, Field].map((element) => schemaElement.of(element)),
+        doc: (schema) => schema.doc([Line.create([Leaf.text("あ"), Field.create([])])]),
+      }),
+    });
+  }
+
+  /** block 軸の長さ。縦書きでは横幅がそれに当たる */
+  function extent(box: DOMRect | null, vertical: boolean): number {
+    return vertical ? (box?.width ?? 0) : (box?.height ?? 0);
+  }
+
+  for (const vertical of [false, true]) {
+    it(`${vertical ? "縦書き" : "横書き"}で、文字の上と同じ太さになる`, () => {
+      view = mountField(vertical);
+      view.focus();
+
+      select(1, 1); // "あ" の手前 = 文字の上
+      const onText = extent(caretBox(), vertical);
+      expect(onText).toBeGreaterThan(0);
+
+      select(3, 3); // 空のインラインブロックの内側
+      const inField = caretBox();
+      const field = view.dom.querySelector(".test-field") as HTMLElement;
+      const box = field.getBoundingClientRect();
+
+      // 箱は行送りぶんあるので、そのまま使うと 2 倍近くになる
+      expect(extent(box, vertical)).toBeGreaterThan(onText);
+      expect(extent(inField, vertical)).toBeCloseTo(onText, 1);
+      // 文字の上と同じく、行の真ん中に立つ
+      const start = vertical ? (inField?.left ?? 0) - box.left : (inField?.top ?? 0) - box.top;
+      expect(start).toBeCloseTo((extent(box, vertical) - onText) / 2, 1);
+    });
+  }
 });
 
 /**
@@ -322,5 +398,87 @@ describe("ブロックの代役", () => {
     expect(shownText(dom)).toContain("ト書き");
     view.textblocks[0].dom.blur();
     expect(shownText(dom)).not.toContain("ト書き");
+  });
+});
+
+/**
+ * インラインブロックの直後にキャレットが立つとき。`inline-flex` の箱は行送りぶんの厚みを
+ * 丸ごと持つ (台本の人物名の欄がこれ) ので、箱の厚みをそのまま使うとキャレットが太る。
+ *
+ * **インラインブロックの後ろに文字が無いときだけ通る道**。文字があれば DOM 点はそのテキストノードに落ち、
+ * 矩形は Range から取れる。セリフの発話が空のときがこれ。
+ */
+describe("インラインブロックの直後のキャレットの太さ", () => {
+  let sheet: HTMLStyleElement;
+
+  beforeEach(() => {
+    // 人物名の欄と同じ形にする。ruby 既定のままでは箱が行送りぶんにならない。
+    // 再描画で ruby ごと作り直されるので、要素ではなく規則で当てる
+    sheet = document.createElement("style");
+    sheet.textContent = "ruby { display: inline-flex; }";
+    document.head.appendChild(sheet);
+  });
+
+  afterEach(() => sheet.remove());
+
+  /** 中身がインラインブロックだけの段落と、比較用に文字だけの段落 */
+  function mountBoxed(vertical: boolean): EditorView {
+    place.style.writingMode = vertical ? "vertical-rl" : "horizontal-tb";
+    place.style.height = vertical ? "300px" : "";
+    place.style.fontSize = "16px";
+    place.style.lineHeight = "2";
+    return new EditorView(place, {
+      state: EditorState.create({
+        config: [basicSchema()],
+        doc: (schema) =>
+          schema.doc([
+            Paragraph.create([
+              Ruby.create([RubyBase.create([Leaf.text("漢")]), RubyText.create([])]),
+            ]),
+            Paragraph.create([Leaf.text("あい")]),
+          ]),
+      }),
+    });
+  }
+
+  /** インラインブロックの直後 = 中身がそれだけなので、その段落の中身の末尾 */
+  function afterBox(): number {
+    return view.textblocks[0].contentTo;
+  }
+
+  function rubyBox(): DOMRect {
+    return (view.dom.querySelector("ruby") as HTMLElement).getBoundingClientRect();
+  }
+
+  it("縦書き: 箱の幅ではなくフォントの大きさになる", () => {
+    view = mountBoxed(true);
+    view.focus();
+    select(afterBox(), afterBox());
+    const caret = caretBox();
+    // 箱は行送りぶん (16px × 2 = 32px) まで太っている。キャレットはフォントの大きさなので
+    // 行送りの手前で収まる (正確な値はフォント依存なので、一致は次のテストで見る)
+    expect(rubyBox().width).toBeGreaterThan(24);
+    expect(caret?.width).toBeLessThan(24);
+  });
+
+  it("横書き: 箱の高さではなくフォントの大きさになる", () => {
+    view = mountBoxed(false);
+    view.focus();
+    select(afterBox(), afterBox());
+    const caret = caretBox();
+    expect(rubyBox().height).toBeGreaterThan(24);
+    expect(caret?.height).toBeLessThan(24);
+  });
+
+  it("縦書き: 文字の上に立つキャレットと同じ太さになる", () => {
+    view = mountBoxed(true);
+    view.focus();
+    select(afterBox(), afterBox());
+    const atBox = caretBox();
+    // 2 つ目の段落の文字の上
+    const onTextPos = view.textblocks[1].contentFrom + 1;
+    select(onTextPos, onTextPos);
+    const onText = caretBox();
+    expect(atBox?.width).toBeCloseTo(onText?.width ?? 0, 0);
   });
 });

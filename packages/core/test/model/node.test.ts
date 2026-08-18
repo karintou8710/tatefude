@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Leaf, Mark, Pos } from "../../src/doc";
-import { doc, Emphasis, p, Strong, strong } from "./doc";
+import { Bouten, doc, p, Strong, strong } from "./doc";
 
 describe("ノードの長さと位置", () => {
   it("plot は開き + 中身 + 閉じ", () => {
@@ -61,10 +61,10 @@ describe("ノードの長さと位置", () => {
   });
 
   it("マークの集合は rank の順に並ぶ", () => {
-    // Emphasis(50) < Strong(60) なので、足した順に関わらず並びは同じになる
-    const a = Strong.addToSet(Emphasis.addToSet(Mark.none));
-    const b = Emphasis.addToSet(Strong.addToSet(Mark.none));
-    expect(a.map((mark) => mark.name)).toEqual(["Emphasis", "Strong"]);
+    // Bouten(43) < Strong(60) なので、足した順に関わらず並びは同じになる
+    const a = Strong.addToSet(Bouten.addToSet(Mark.none));
+    const b = Bouten.addToSet(Strong.addToSet(Mark.none));
+    expect(a.map((mark) => mark.name)).toEqual(["Bouten", "Strong"]);
     expect(Mark.sameSet(a, b)).toBe(true);
   });
 });

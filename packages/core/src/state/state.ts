@@ -88,10 +88,18 @@ export class EditorState {
     const effects = [...asArray(spec.effects)];
     if (spec.userEvent) annotations.push(Transaction.userEvent.of(spec.userEvent));
     let selectionSpec = spec.selection;
+    // 指定が無ければ「ユーザーの操作か」で決める
+    let scrollIntoView = spec.scrollIntoView ?? !!spec.userEvent;
 
     // 返ってくる spec の位置はその時点の doc の座標なので、都度 base を進める
     for (const extend of this.facet(Transaction.extender)) {
-      const preliminary = this.buildTransaction(changes, annotations, effects, selectionSpec);
+      const preliminary = this.buildTransaction(
+        changes,
+        annotations,
+        effects,
+        selectionSpec,
+        scrollIntoView,
+      );
       const extra = extend(preliminary);
       if (!extra) continue;
       const base = changes.apply(this.doc);
@@ -101,9 +109,10 @@ export class EditorState {
       effects.push(...asArray(extra.effects));
       if (extra.userEvent) annotations.push(Transaction.userEvent.of(extra.userEvent));
       if (extra.selection) selectionSpec = extra.selection;
+      if (extra.scrollIntoView !== undefined) scrollIntoView = extra.scrollIntoView;
     }
 
-    return this.buildTransaction(changes, annotations, effects, selectionSpec);
+    return this.buildTransaction(changes, annotations, effects, selectionSpec, scrollIntoView);
   }
 
   private buildTransaction(
@@ -113,6 +122,7 @@ export class EditorState {
     // biome-ignore lint/suspicious/noExplicitAny: 同上
     effects: readonly any[],
     selectionSpec: TransactionSpec["selection"],
+    scrollIntoView: boolean,
   ): Transaction {
     const newDoc = changes.apply(this.doc);
     this.schema.validate(newDoc);
@@ -120,7 +130,7 @@ export class EditorState {
       (typeof selectionSpec === "function"
         ? selectionSpec(newDoc, changes)
         : (selectionSpec ?? null)) ?? this.selection.map(newDoc, changes);
-    return new Transaction(this, changes, newDoc, selection, annotations, effects);
+    return new Transaction(this, changes, newDoc, selection, annotations, effects, scrollIntoView);
   }
 
   /** @internal `tr.state` から呼ばれる */

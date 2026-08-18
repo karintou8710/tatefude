@@ -30,7 +30,8 @@ Affected files:
 
   - src/doc/           (the entire directory)
   - src/state/history.ts
-  - src/schema-basic.ts  (the Paragraph and Blockquote definitions)
+  - src/extensions/node/paragraph.ts
+  - src/extensions/node/blockquote.ts
 
 src/doc/change.ts and src/state/history.ts descend from Wordgard's
 implementations of ChangeSet and history, which themselves originate in

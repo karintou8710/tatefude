@@ -60,13 +60,9 @@ function splitTag(state: EditorState, $to: Pos, parent: Plot): Plot.Tag {
 }
 
 /**
- * Enter によるテキストブロックの分割。閉じてから、後ろ側のタグで開き直す。
- *
- * **キャレットがインラインブロック (ルビ) の中にいるときは何もしない。これは決めた挙動。**
- * wordgard の `splitTextblock` は内側の箱も閉じて開き直すが、それには「箱の末尾にいるときは
- * 開き直さない」判定 (`tag.split(atEnd)` / `preserveOnSplitAtEnd`) が要る。それ無しで
- * 開き直すと、rb の末尾で割ったときに後ろの rt が rb の中に入り、スキーマに合わないので
- * 読みが黙って捨てられる。ルビを割らないほうを採る。
+ * Enter による分割。閉じてから後ろ側のタグで開き直す。
+ * インラインブロック (ルビ) の中では何もしない — 開き直すと rb の末尾で割ったとき rt が中に入り、
+ * スキーマに合わず読みが黙って捨てられる。
  */
 export const splitBlock: Command = (state) => {
   const { from, to } = state.selection;
@@ -150,7 +146,7 @@ function joinBlocks(doc: Plot, $before: Pos, $after: Pos): ChangeSpec {
   }
 
   // 繋いだ先が中身を許すとは限らない (セリフの人物名をト書きへ、など)。fit に通せば
-  // 入れない箱だけが外れて、中の文字は残る
+  // 入れないインラインブロックだけが外れて、中の文字は残る
   return { from: $before.end(dBefore), to: end, insert: tokens, fit: true };
 }
 
@@ -242,7 +238,7 @@ export function insertText(from: number, to: number, insert: string, userEvent: 
   };
 }
 
-/** plot を開き・中身・閉じに開く。丸ごと渡すと fit が中身を見られず、箱ごと落ちてしまう */
+/** plot を開き・中身・閉じに開く。丸ごと渡すと fit が中身を見られず、インラインブロックごと落ちてしまう */
 function openTokens(content: readonly DocNode[]): Token[] {
   const out: Token[] = [];
   for (const child of content) {
@@ -253,12 +249,8 @@ function openTokens(content: readonly DocNode[]): Token[] {
 }
 
 /**
- * キャレットのいるテキストブロックの型を変える。ツールバーの「柱にする」「セリフにする」。
- *
- * 中身も一緒に入れ直して fit に通す。新しい型に入れない子 (セリフの人物名を地の文へ、など)
- * は箱だけ落ちて中の文字は残るので、人物名が本文の頭の文字になる。
- *
- * 足りない子 (セリフの人物名など) は correction が挿すので、ここでは面倒を見ない。
+ * テキストブロックの型を変える。中身は fit に通すので、新しい型に入れないインラインブロックは
+ * 落ちて中の文字だけ残る。足りない子は correction が挿す。
  */
 export function setBlockType(tag: Plot.Tag): Command {
   return (state) => {
@@ -267,11 +259,11 @@ export function setBlockType(tag: Plot.Tag): Command {
     if (depth == null || depth < 1) return false;
     const block = $from.node(depth);
     if (block.type === tag.type) return false;
-    // テキストブロック同士の入れ替え。箱で包むのは別のコマンド (wrapIn) の仕事
+    // テキストブロック同士の入れ替え。インラインブロックで包むのは別のコマンド (wrapIn) の仕事
     if (!tag.type.isTextblock) return false;
     if (!state.schema.canContain($from.node(depth - 1).type, tag.type)) return false;
     const open = $from.before(depth);
-    // 中身ごと置き換えるので、位置の写像では置換の端に潰れる。落ちるのは箱だけで文字は
+    // 中身ごと置き換えるので、位置の写像では置換の端に潰れる。落ちるのはインラインブロックだけで文字は
     // 残るから、キャレットは**文字数**で数え直す
     const offset = buildTextblockMap(block, open).posToOffset(state.selection.head);
     return {
@@ -292,13 +284,8 @@ export function setBlockType(tag: Plot.Tag): Command {
 }
 
 /**
- * 選択範囲をインラインブロックで包む。ツールバーの「縦中横」がこれ。
- *
- * 1 つのテキストブロックに収まっていて、中身がその箱に入れられるときだけ通す。
- * 箱の中に箱 (ルビの中の縦中横など) は今は作らない。
- *
- * `maxLength` は縦中横のように**長いと読めなくなる**箱のため。超える選択では false を返し、
- * ボタンが disabled になる。
+ * 選択範囲をインラインブロックで包む。入れ子は今は作らない。
+ * `maxLength` は縦中横のように長いと読めなくなるインラインブロックのため。
  */
 export function wrapInline(tag: Plot.Tag, maxLength?: number): Command {
   return (state) => {
@@ -310,10 +297,12 @@ export function wrapInline(tag: Plot.Tag, maxLength?: number): Command {
     if (depth == null) return false;
     // ブロックを跨ぐ選択は扱わない
     if (from < $from.start(depth) || to > $from.end(depth)) return false;
+    // 親が置けないなら作らない。インラインブロックの中で押したときはここで止まる
+    if (!state.schema.canContain($from.parent.type, tag.type)) return false;
 
     const tokens = sliceDoc(state.doc, from, to).tokens;
     for (const token of tokens) {
-      // 開き / 閉じが出てくる = 箱をまたいでいる
+      // 開き / 閉じが出てくる = インラインブロックをまたいでいる
       if (isClose(token) || isOpen(token)) return false;
       if (!state.schema.canContain(tag.type, token.type)) return false;
     }

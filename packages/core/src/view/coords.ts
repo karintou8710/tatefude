@@ -31,7 +31,7 @@ export function caretPointFromCoords(x: number, y: number): { node: Node; offset
   return null;
 }
 
-/** この要素の中だけを平らに数えたときの N 文字目。箱をまたぐ判断は view/dom-point.ts */
+/** この要素の中だけを平らに数えたときの N 文字目。インラインブロックをまたぐ判断は view/dom-point.ts */
 export function blockOffsetToDOMPoint(
   blockDOM: HTMLElement,
   offset: number,
@@ -59,24 +59,16 @@ export function blockOffsetRange(blockDOM: HTMLElement, from: number, to: number
 }
 
 /**
- * collapsed な Range が矩形を 2 つ返すのはソフトラップの位置。前の行の末尾と次の行の先頭が
- * 同じ doc 位置に対応するので、**行の先頭 (最後の矩形)** を採る。
- *
- * 末尾を採ると、そこを基準にしたブロック方向の移動が 1 つ前の行から刻むことになり、
- * 行を飛ばす / 動かないという形で失敗する ({@link caretRectAt} を使う `offsetOnNextLine`)。
- * 折り返しでない位置では矩形は 1 つなので、この選び方でも何も変わらない。
+ * 矩形が 2 つ返るのはソフトラップの位置。行の先頭 (最後の矩形) を採る。
+ * 末尾を採ると行移動が 1 つ前の行から刻み、行を飛ばす / 動かないという形で失敗する。
  */
 export function lineStartRect(rects: DOMRectList): DOMRect | null {
   return rects.length ? rects[rects.length - 1] : null;
 }
 
 /**
- * 矩形が取れない位置での代用。
- *
- * ブロックの箱は使えない。行送りぶんの高さがあるので、line-height を広げると
- * キャレットだけが行いっぱいに伸びる (文字の上では常にフォントの高さになる)。
- * 空ブロックには高さ確保の `<br>` が入っているので、その矩形がちょうどフォントの高さ。
- * 書字方向による軸の入れ替えも `<br>` 側が済ませてくれる。
+ * 矩形が取れない位置での代用。ブロックの箱は行送りぶんあるので、line-height を広げると
+ * キャレットが行いっぱいに伸びる。空ブロックの `<br>` ならフォントの高さで済む。
  */
 export function caretRectAt(blockDOM: HTMLElement, offset: number): DOMRect {
   const range = blockOffsetRange(blockDOM, offset, offset);
@@ -109,6 +101,33 @@ export function caretRectAt(blockDOM: HTMLElement, offset: number): DOMRect {
   return vertical
     ? new DOMRect(box.left, box.top, box.width, 0)
     : new DOMRect(box.left, box.top, 0, box.height);
+}
+
+/**
+ * 文字の上でキャレットが取る太さ。箱の大きさは行送りぶんあるので使えない。
+ * 空のインラインブロックは Range から測れないので、同じフォントの要素を編集領域の外に立てて測る。
+ */
+export function fontCaretExtent(dom: Element): number {
+  const style = getComputedStyle(dom);
+  const probe = document.createElement("div");
+  probe.style.position = "absolute";
+  probe.style.visibility = "hidden";
+  probe.style.top = "0";
+  probe.style.left = "0";
+  // 縦書きの中から呼ばれても height が block 軸になるように揃える
+  probe.style.writingMode = "horizontal-tb";
+  probe.style.fontStyle = style.fontStyle;
+  probe.style.fontWeight = style.fontWeight;
+  probe.style.fontStretch = style.fontStretch;
+  probe.style.fontSize = style.fontSize;
+  probe.style.fontFamily = style.fontFamily;
+  probe.textContent = "x";
+  document.body.appendChild(probe);
+  const range = document.createRange();
+  range.selectNodeContents(probe);
+  const extent = range.getBoundingClientRect().height;
+  probe.remove();
+  return extent;
 }
 
 /** [from, to) の 1 文字ずつ。EditContext の characterBounds に渡す */

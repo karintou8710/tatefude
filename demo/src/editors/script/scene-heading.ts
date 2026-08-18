@@ -17,7 +17,7 @@ import {
  * (レベルを持つ h1〜h6) とは別物なので、`Heading` ではなくこの名前にしている。
  */
 export const SceneHeading = Plot.define("SceneHeading", {
-  // 場所の名前とルビだけ。人物名 (Speaker) の箱はセリフのもの
+  // 場所の名前とルビだけ。人物名 (Speaker) のインラインブロックはセリフのもの
   inlineContent: [Leaf.Text, Ruby, Tcy],
   group: Node.Group.Content,
   shape: { element: "h2", attrs: { class: "script-scene-heading" } },

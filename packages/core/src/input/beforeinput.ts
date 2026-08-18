@@ -3,12 +3,8 @@ import { redo, undo } from "../state/history";
 import type { EditorView } from "../view/view";
 
 /**
- * keymap で捕まえたものはここに来ない (preventDefault 済み)。残すのは keymap に書けない
- * ものだけ — 境界の削除と、macOS の Ctrl-H / Ctrl-D / Ctrl-O のように OS ごとに割り当ての
- * 違うキー。キーではなく意図で受けるので、OS 別の割り当てを並べなくて済む。keymap に
- * 割り当てがあるものは、入口が 2 つできるのでここには書かない。
- *
- * 取り消しだけは例外で、メニューや右クリックから**キーを伴わずに**飛んでくる。
+ * keymap に書けないものだけ。境界の削除と、OS ごとに割り当ての違うキー (macOS の Ctrl-H 等)
+ * を意図で受ける。取り消しは例外で、メニューからキーを伴わずに飛んでくる。
  */
 export function handleBeforeInput(view: EditorView, event: InputEvent): boolean {
   switch (event.inputType) {

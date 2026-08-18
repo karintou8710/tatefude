@@ -19,10 +19,7 @@ export interface CorrectionSpec {
   node: Node.Query;
   /**
    * 要らなければ null。位置は変更後の doc の座標。
-   *
-   * 足りない入れ物を挿す直しでは、キャレットをその中に入れたいことがある
-   * (セリフに人物名の欄を挿したら、次に打つのは名前) ので、
-   * 選択まで動かしたいときは {@link TransactionSpec} を返す。
+   * 挿した入れ物にキャレットを入れたいときは {@link TransactionSpec} を返す。
    */
   correct(context: CorrectionContext): ChangeSpec | readonly ChangeSpec[] | TransactionSpec | null;
 }

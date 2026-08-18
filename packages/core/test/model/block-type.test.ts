@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { setBlockType } from "../../src/commands/base";
 import { Leaf, Node, Plot, type Schema } from "../../src/doc";
-import { Blockquote, basicSchema, Doc, Paragraph } from "../../src/schema-basic";
+import { Blockquote, basicSchema, Doc, Paragraph } from "../../src/extensions";
 import { TextSelection } from "../../src/state/selection";
 import { EditorState, schemaElement } from "../../src/state/state";
 
@@ -23,13 +23,13 @@ const Speaker = Plot.define("Speaker", {
   inlineContent: Leaf.Text,
   shape: { element: "span" },
 });
-/** セリフ相当。人物名の箱を許す */
+/** セリフ相当。人物名のインラインブロックを許す */
 const Line = Plot.define("Line", {
   inlineContent: [Leaf.Text, Speaker],
   group: Node.Group.Content,
   shape: { element: "p" },
 });
-/** 地の文相当。文字だけで、人物名の箱は許さない */
+/** 地の文相当。文字だけで、人物名のインラインブロックは許さない */
 const Plain = Plot.define("Plain", {
   inlineContent: Leaf.Text,
   group: Node.Group.Content,
@@ -71,27 +71,27 @@ describe("setBlockType", () => {
     expect(run([h("ab")], 2, Heading)).toBeNull();
   });
 
-  // 台本の「セリフを地の文にする」。人物名の箱は地の文に入らないので fit が落とすが、
+  // 台本の「セリフを地の文にする」。人物名のインラインブロックは地の文に入らないので fit が落とすが、
   // 中の文字は残るので名前が本文の頭に繋がる
-  it("新しい型に入れないインラインの箱は、中身を残して外れる", () => {
+  it("新しい型に入れないインラインのインラインブロックは、中身を残して外れる", () => {
     const speech = Line.create([Speaker.create([Leaf.text("ヤス")]), Leaf.text("とにかく")]);
     // Line( Speaker("ヤス") 1..5, "とにかく" 5..9 ) — キャレットは「とに|かく」
     expect(run([speech], 7, Plain, [...elements, Line, Speaker, Plain])).toEqual({
       doc: 'Doc(Plain("ヤスとにかく"))',
-      // 落ちたのは箱のトークン 2 つぶんだけ。文字の上では同じ場所
+      // 落ちたのはインラインブロックのトークン 2 つぶんだけ。文字の上では同じ場所
       head: 5,
     });
   });
 
-  it("入れ替え先が許すインラインの箱はそのまま残る", () => {
+  it("入れ替え先が許すインラインのインラインブロックはそのまま残る", () => {
     const speech = Line.create([Speaker.create([Leaf.text("ヤス")]), Leaf.text("とにかく")]);
-    // Heading は何でも入る型なので箱ごと移る
+    // Heading は何でも入る型なのでインラインブロックごと移る
     expect(run([speech], 7, Heading, [...elements, Line, Speaker, Plain])?.doc).toBe(
       'Doc(Heading(Speaker("ヤス"), "とにかく"))',
     );
   });
 
-  it("テキストブロック以外へは変えない (箱で包むのは別のコマンド)", () => {
+  it("テキストブロック以外へは変えない (インラインブロックで包むのは別のコマンド)", () => {
     let state = EditorState.create({
       config: [basicSchema()],
       doc: (schema) => schema.doc([Blockquote.create([Paragraph.create([Leaf.text("ab")])])]),

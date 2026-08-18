@@ -207,8 +207,8 @@ wordgard は `cursorInsideBounds` を持つインラインブロックの境界�
 
 ### インラインブロックの中の Enter
 
-**何もしない (決めた挙動)。** wordgard の `splitTextblock` は内側の箱も閉じて開き直すが、
-それには「箱の末尾にいるときは開き直さない」判定 (`tag.split(atEnd)` /
+**何もしない (決めた挙動)。** wordgard の `splitTextblock` は内側のインラインブロックも閉じて開き直すが、
+それには「インラインブロックの末尾にいるときは開き直さない」判定 (`tag.split(atEnd)` /
 `preserveOnSplitAtEnd`) が要る。それ無しで開き直すと、`<rb>` の末尾で割ったときに
 後ろに続く `<rt>` が `<rb>` の中に入り、スキーマに合わないので**読みが黙って捨てられる**。
 ルビを割れないことより、読みが消えることのほうが悪い。
@@ -402,7 +402,7 @@ onTextUpdate(block: BlockHandle, e: TextUpdateEvent) {
 - **Highlight は 2 つに分ける**。`tf-selection` が選択、`tf-inline-active` が
   「キャレットがインラインブロックの中にいる」印。`rb` / `rt` の中身とその外側の端は
   画面上の同じ点なので、キャレットだけではどちらにいるか見えない。中にいる間は
-  囲んでいる箱を塗って見せる。意味が選択とは違うので、色を別に指定できるよう名前を割った
+  囲んでいるインラインブロックを塗って見せる。意味が選択とは違うので、色を別に指定できるよう名前を割った
 
 キャレット (空の選択) はネイティブのままブラウザが描く。塗るのは範囲があるときだけ。
 
@@ -435,7 +435,10 @@ tatefude/
 ├── demo/                   利用側 (React。構成は README を参照)
 ├── src/
 │   ├── index.ts
-│   ├── schema-basic.ts     doc / paragraph / text + strong / em
+│   ├── extensions/         スキーマの拡張。1 つの型 + その correction / コマンドで 1 ファイル
+│   │   ├── node/           doc / paragraph / blockquote / ruby / tcy
+│   │   ├── mark/           strong / emphasis / emphasis-dots
+│   │   └── basic.ts        既定の組み合わせ (basicSchema())
 │   ├── doc/                ドキュメントモデルと変更 (Wordgard 由来・永続・不変)
 │   │   ├── node.ts         Node = Plot | Leaf、Tag、Group / Role / Query
 │   │   ├── mark.ts         Mark / Mark.Type (rank 順の集合)
@@ -559,7 +562,7 @@ class BlockEditContext {
 - **矢印キーによる移動は全部自前** (grapheme 単位 / 行の矩形 / ブロック境界の跨ぎ)。
   マウスの選択はネイティブで、**ブロックを跨ぐドラッグだけ自前**
 - 選択の描画 (ネイティブの選択は透明にして CSS Custom Highlight で塗る)
-- `Mod-b` / `Mod-i` によるマークのトグル
+- `Mod-b` (太字) / `Mod-i` (傍点) によるマークのトグル
 - デバッグパネル: doc の JSON、各ブロックの EditContext バッファと選択、
   アクティブな EditContext、直近のイベント列
 
@@ -666,7 +669,7 @@ export const Paragraph = Plot.define("Paragraph", {
 「要素を増やしたくない装飾」を素直に書ける。
 
 ```ts
-export const EmphasisDots = Mark.define("EmphasisDots", {
+export const Bouten = Mark.define("Bouten", {
   rank: 43,
   spanning: true,
   shape: { attribute: "style/text-emphasis", value: "filled sesame" },

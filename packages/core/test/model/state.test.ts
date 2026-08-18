@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Leaf, Slice } from "../../src/doc";
-import { basicSchema, Paragraph } from "../../src/schema-basic";
+import { basicSchema, Paragraph } from "../../src/extensions";
 import { correction } from "../../src/state/correction";
 import { type Extension, Facet, Field } from "../../src/state/facet";
 import { EditorState } from "../../src/state/state";

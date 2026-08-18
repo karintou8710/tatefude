@@ -1,5 +1,6 @@
-import { Blockquote, basicSchema, history, Paragraph, tcySchema } from "tatefude";
-import { dots, ruby, tcy, text } from "../content";
+import { Blockquote, basicSchema, history, Paragraph, tcyExtension } from "tatefude";
+import { rubyItem } from "../common";
+import { bouten, ruby, tcy, text } from "../content";
 import type { Editor } from "../types";
 import { tcyItem } from "../vertical";
 import styles from "./styles.module.css";
@@ -10,8 +11,8 @@ export const novel: Editor = {
   description: "段落の字下げとルビ。スキーマは横書きと同じ",
   vertical: true,
   className: styles.novel,
-  config: [basicSchema(), tcySchema, history()],
-  toolbar: [tcyItem],
+  config: [basicSchema(), tcyExtension, history()],
+  toolbar: [rubyItem, tcyItem],
   doc: (schema) =>
     schema.doc([
       Paragraph.create([
@@ -28,7 +29,7 @@ export const novel: Editor = {
         text("　この街に来て"),
         tcy("12"),
         text("年目の冬になる。誰にも "),
-        dots("会わない"),
+        bouten("会わない"),
         text(" ための冬だった。"),
       ]),
       Blockquote.create([Paragraph.create([text("　――もう帰らないのですか。")])]),

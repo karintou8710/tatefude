@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { liftEmptyBlock } from "../../src/commands/base";
 import type { Plot } from "../../src/doc";
-import { Blockquote, basicSchema } from "../../src/schema-basic";
+import { Blockquote, basicSchema } from "../../src/extensions";
 import { TextSelection } from "../../src/state/selection";
 import { EditorState } from "../../src/state/state";
 import { p } from "./doc";

@@ -1,16 +1,16 @@
 import { Leaf, type Mark, type Node, type Plot, Schema } from "../../src/doc";
 import {
+  Bouten,
   basicSchemaElements,
-  Emphasis,
   Paragraph,
   Ruby,
   RubyBase,
   RubyText,
   Strong,
-} from "../../src/schema-basic";
+} from "../../src/extensions";
 
 export const schema = Schema.define(basicSchemaElements);
-export { Emphasis, Paragraph, Strong };
+export { Bouten, Paragraph, Strong };
 
 /** ルビ = インラインブロックのテスト用の組み立て */
 export function ruby(base: string, reading: string): Node {
@@ -30,8 +30,8 @@ export function strong(text: string): Node {
   return Leaf.text(text, Strong.addToSet(Leaf.text("").marks));
 }
 
-export function em(text: string): Node {
-  return Leaf.text(text, Emphasis.addToSet([] as Mark.Set));
+export function bouten(text: string): Node {
+  return Leaf.text(text, Bouten.addToSet([] as Mark.Set));
 }
 
 /** doc 直下のブロックのテキスト */

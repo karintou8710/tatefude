@@ -41,6 +41,30 @@ export {
   TextblockMap,
   ValidationError,
 } from "./doc";
+export {
+  Blockquote,
+  Bouten,
+  basicSchema,
+  basicSchemaElements,
+  blockquoteExtension,
+  boutenExtension,
+  Doc,
+  docExtension,
+  Paragraph,
+  paragraphExtension,
+  Ruby,
+  RubyBase,
+  RubyText,
+  rubyCorrection,
+  rubyExtension,
+  Strong,
+  strongExtension,
+  Tcy,
+  tcyCorrection,
+  tcyExtension,
+  wrapInRuby,
+  wrapInTcy,
+} from "./extensions";
 export { BlockEditContext } from "./ime/block-context";
 export { isEditContextSupported } from "./ime/edit-context-api";
 export { EditContextManager } from "./ime/manager";
@@ -56,21 +80,6 @@ export { handleBeforeInput } from "./input/beforeinput";
 export { alongOf, crossToAdjacentBlock } from "./input/boundary";
 export { handleKeyDown, type KeyBinding, keymap } from "./input/keymap";
 export { PointerSelection, posAtCoords } from "./input/pointer";
-export {
-  Blockquote,
-  basicSchema,
-  basicSchemaElements,
-  Doc,
-  Emphasis,
-  EmphasisDots,
-  Paragraph,
-  Ruby,
-  RubyBase,
-  RubyText,
-  rubyCorrection,
-  Strong,
-} from "./schema-basic";
-export { TCY_MAX_LENGTH, Tcy, tcyCorrection, tcySchema } from "./schema-tcy";
 export {
   type CompositionEvent,
   type CompositionState,

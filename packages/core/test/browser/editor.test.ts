@@ -1,15 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Leaf, type Plot } from "../../src/doc";
+import { Blockquote, basicSchema, Paragraph, Ruby, RubyBase, RubyText } from "../../src/extensions";
 import { isEditContextSupported } from "../../src/ime/edit-context-api";
 import { posAtCoords, wordRangeAt } from "../../src/input/pointer";
-import {
-  Blockquote,
-  basicSchema,
-  Paragraph,
-  Ruby,
-  RubyBase,
-  RubyText,
-} from "../../src/schema-basic";
 import type { Extension } from "../../src/state/facet";
 import { history } from "../../src/state/history";
 import { TextSelection } from "../../src/state/selection";
@@ -199,11 +192,14 @@ describe("EditContext との接続", () => {
     expect(view.textblocks[0].contentDOM.innerHTML).toBe("abcd");
   });
 
-  it("Mod-i が選択範囲に Emphasis を付ける", () => {
+  it("Mod-i が選択範囲に傍点を付ける", () => {
     view = mount("abcd");
     setSelection(1, 3);
     expect(pressMod("i")).toBe(true);
-    expect(view.textblocks[0].contentDOM.innerHTML).toBe("<em>ab</em>cd");
+    // 要素ではなく属性で描くマークなので、span の style になる
+    expect(view.textblocks[0].contentDOM.innerHTML).toBe(
+      '<span style="text-emphasis: filled sesame;">ab</span>cd',
+    );
   });
 
   it("ブロック先頭の Backspace が結合になる", () => {
@@ -483,7 +479,7 @@ describe("インラインブロック", () => {
     ).toBe(true);
   });
 
-  it("ruby の直後は箱の外を指す", () => {
+  it("ruby の直後はインラインブロックの外を指す", () => {
     view = mountRuby();
     setCaret(11); // ruby の閉じの直後。平らに数えると rt の末尾と同じ番号になる
     const anchor = document.getSelection()?.anchorNode ?? null;

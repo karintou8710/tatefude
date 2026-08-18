@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Leaf, type Plot } from "../../src/doc";
+import { basicSchema, Paragraph } from "../../src/extensions";
 import { arrowMotion } from "../../src/input/arrow";
-import { basicSchema, Paragraph } from "../../src/schema-basic";
 import { TextSelection } from "../../src/state/selection";
 import { EditorState } from "../../src/state/state";
 import { blockOffsetRange, isOnEdgeLine } from "../../src/view/coords";

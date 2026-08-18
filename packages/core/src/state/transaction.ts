@@ -17,6 +17,11 @@ export interface TransactionSpec {
   effects?: Effect<any> | readonly Effect<any>[];
   /** `annotations: Transaction.userEvent.of(...)` の省略形 */
   userEvent?: string;
+  /**
+   * キャレットを見える位置まで送るか。省略時は `userEvent` の有無で決まる。
+   * 外から差し替えただけの更新で、読んでいる場所を奪わないため。
+   */
+  scrollIntoView?: boolean;
 }
 
 /** ステップの列ではなく、変更 1 個 ({@link ChangeSet}) と選択・注釈・効果を持つ */
@@ -32,6 +37,7 @@ export class Transaction {
     readonly annotations: readonly Annotation<any>[],
     // biome-ignore lint/suspicious/noExplicitAny: 上と同じ
     readonly effects: readonly Effect<any>[],
+    readonly scrollIntoView: boolean = false,
   ) {}
 
   get docChanged(): boolean {

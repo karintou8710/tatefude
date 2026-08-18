@@ -61,12 +61,8 @@ export class EditContextManager {
   }
 
   /**
-   * 変換を確定させた keydown か。確定の Enter は変換を閉じるためのもので、改行の意図では
-   * ないので捨てる。ただし捨てるのは確定直後の 1 回だけ — 2 回目の Enter は改行にする。
-   *
-   * **時間だけでは足りない。** 素早く 2 回押すと、2 回目が猶予の中に入って一緒に捨てられる。
-   * IME が処理したキーには keyCode 229 が付き、ユーザーが自分で押した Enter は 13 なので、
-   * そこで切り分ける。時間の窓は「その 229 が今の確定のものか」を見るために残す。
+   * 変換を確定させた keydown か。改行の意図ではないので捨てる。
+   * 時間だけだと素早い 2 回目も猶予に入るので、IME が処理したキーに付く keyCode で分ける。
    */
   endedCompositionRecently(event: KeyboardEvent): boolean {
     if (event.keyCode !== IME_PROCESS_KEY) return false;

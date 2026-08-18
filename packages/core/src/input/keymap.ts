@@ -18,10 +18,8 @@ export interface KeyBinding {
 }
 
 /**
- * 拡張が持ち込むキー割り当て。`baseKeymap` より**先に**試されるので、既定を上書きできる。
- *
- * コマンドが false を返せば次の割り当てへ落ちるので、同じキーに条件違いの割り当てを
- * 重ねられる (`keymap.of([{ key: "Tab", run: setLine }])` を地の文のときだけ効かせる等)。
+ * 拡張が持ち込むキー割り当て。`baseKeymap` より先に試される。
+ * コマンドが false を返せば次へ落ちるので、同じキーに条件違いを重ねられる。
  */
 export const keymap: Facet<readonly KeyBinding[]> = Facet.define<readonly KeyBinding[]>();
 
@@ -31,7 +29,8 @@ const isMac = typeof navigator !== "undefined" && /Mac|iP(hone|ad|od)/.test(navi
 const baseKeymap: readonly KeyBinding[] = [
   // Mark.define に渡した型名。要素名ではない
   { key: "Mod-b", run: toggleMark("Strong") },
-  { key: "Mod-i", run: toggleMark("Emphasis") },
+  // 日本語組版の強調は傍点。イタリックは使わないので i の枠をこちらに充てる
+  { key: "Mod-i", run: toggleMark("Bouten") },
   // ブラウザに任せるとフォーカス中のブロックだけになるので取り上げる
   { key: "Mod-a", run: selectAll },
   { key: "Mod-z", run: undo },

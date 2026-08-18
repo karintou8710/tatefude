@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Leaf, Mark, Node, Plot, Schema, SchemaError, ValidationError } from "../../src/doc";
-import { Doc, EmphasisDots, Paragraph, Strong } from "../../src/schema-basic";
+import { Bouten, Doc, Paragraph, Strong } from "../../src/extensions";
 import { doc, p, schema } from "./doc";
 
 const G = Node.Group;
@@ -54,9 +54,9 @@ describe("Schema", () => {
   });
 
   it("属性で描くマークも同じように扱える", () => {
-    const dotted = Paragraph.create([Leaf.text("傍点", EmphasisDots.addToSet(Mark.none))]);
+    const dotted = Paragraph.create([Leaf.text("傍点", Bouten.addToSet(Mark.none))]);
     expect(() => schema.doc([dotted])).not.toThrow();
-    expect(EmphasisDots.type.isElement).toBe(false);
+    expect(Bouten.type.isElement).toBe(false);
     expect(Strong.type.isElement).toBe(true);
   });
 

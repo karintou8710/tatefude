@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { insertText, splitBlock } from "../../src/commands/base";
-import { basicSchema } from "../../src/schema-basic";
+import { basicSchema } from "../../src/extensions";
 import {
   history,
   historyTime,

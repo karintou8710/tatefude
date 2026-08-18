@@ -5,11 +5,8 @@ import { domPointToBlockPos } from "../view/dom-point";
 import type { EditorView } from "../view/view";
 
 /**
- * ポインタによる選択を全部持つ。ブラウザには一切作らせない (mousedown を preventDefault)。
- *
- * ブラウザに任せると、編集ホストの境界で選択が丸められる (docs/editcontext.md #1) ので
- * ブロックを跨ぐドラッグが受け取れず、ブロックの外を押したときは選択が作られずフォーカスも
- * 落ちる。場合分けで拾い分けるより、最初から全部こちらで作るほうが単純になる。
+ * ポインタによる選択を全部持つ。ブラウザに任せると編集ホストの境界で選択が丸められ
+ * (docs/editcontext.md #1)、ブロックを跨ぐドラッグが受け取れない。
  */
 export class PointerSelection {
   /** ドラッグの起点。伸ばす向きが変わっても動かさない */
@@ -120,11 +117,9 @@ export function posAtCoords(view: EditorView, x: number, y: number): number | nu
 }
 
 /**
- * 中身が空のインラインブロック (読みを入れていない rt など) を指していたら、その中の位置。
- *
- * 空の箱には**当たり判定が無い**。箱を持っているのは代役の生成内容のおかげで、生成内容には
- * 対応する DOM 位置が無いので、caretPositionFromPoint は中を返さず外のテキストへ逃げる
- * (`user-select` の指定とは無関係)。実際に指している要素から拾い直す。
+ * 空のインラインブロックを指していたら、その中の位置。
+ * 箱を持っているのは代役の生成内容で、そこに DOM 位置が無いため
+ * caretPositionFromPoint は外のテキストへ逃げる。指している要素から拾い直す。
  */
 function posInEmptyInlineBlock(view: EditorView, x: number, y: number): number | null {
   const box = document.elementFromPoint(x, y)?.closest("[data-tf-inline]");
@@ -133,12 +128,42 @@ function posInEmptyInlineBlock(view: EditorView, x: number, y: number): number |
   return block ? domPointToBlockPos(block, box, 0) : null;
 }
 
-/** その点がテキストブロックの中を指していれば doc 位置。外なら null */
+/**
+ * 押した場所が中身より後ろならインラインブロックの外の位置。中身より大きく取る型 (人物名の枠) では、
+ * 余白や生成内容に DOM 位置が無く、中の文字の末尾へ吸い込まれる。
+ */
+function posAfterInlineBlock(
+  block: TextblockView,
+  node: Node,
+  x: number,
+  y: number,
+): number | null {
+  const element = node.nodeType === 1 ? (node as Element) : node.parentElement;
+  const box = element?.closest("[data-tf-inline]");
+  if (!box) return null;
+
+  const range = document.createRange();
+  range.selectNodeContents(box);
+  const content = range.getBoundingClientRect();
+  // インライン方向で中身の終わりより後ろか。RTL は非スコープなので進む向きだけ見る
+  const { vertical } = writingModeOf(block.contentDOM);
+  if (!(vertical ? y > content.bottom : x > content.right)) return null;
+
+  const parent = box.parentNode;
+  if (!parent) return null;
+  const after = Array.prototype.indexOf.call(parent.childNodes, box) + 1;
+  return domPointToBlockPos(block, parent, after);
+}
+
 function posAtPoint(view: EditorView, x: number, y: number): number | null {
   const point = caretPointFromCoords(x, y);
   if (!point) return null;
   const block = view.textblockForDOM(point.node);
-  return block ? domPointToBlockPos(block, point.node, point.offset) : null;
+  if (!block) return null;
+  return (
+    posAfterInlineBlock(block, point.node, x, y) ??
+    domPointToBlockPos(block, point.node, point.offset)
+  );
 }
 
 const words = new Intl.Segmenter(undefined, { granularity: "word" });

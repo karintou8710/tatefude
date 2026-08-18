@@ -18,7 +18,7 @@ import { Speaker } from "./speaker";
 export const Dialogue = Plot.define("Dialogue", {
   inlineContent: true,
   group: Node.Group.Content,
-  // 先頭は人物名の箱で固定。その手前は名前の内側の先頭と同じ点に描かれる余りで、
+  // 先頭は人物名のインラインブロックで固定。その手前は名前の内側の先頭と同じ点に描かれる余りで、
   // そこで打つと名前の手前に文字が入り、dialogueCorrection が 2 つ目の名前欄を生やす
   cursorAtContentStart: false,
   shape: { element: "p", attrs: { class: "script-dialogue" } },
@@ -47,9 +47,9 @@ const dialogueCorrection: Extension = correction({
 });
 
 /**
- * 鉤括弧の先頭 (人物名の箱の直後) での Backspace。前のブロックと繋ぎ、人物名は捨てる。
+ * 鉤括弧の先頭 (人物名のインラインブロックの直後) での Backspace。前のブロックと繋ぎ、人物名は捨てる。
  *
- * 既定の joinBackward は**中身の先頭**でしか効かない。セリフの先頭は人物名の箱が埋めていて
+ * 既定の joinBackward は**中身の先頭**でしか効かない。セリフの先頭は人物名のインラインブロックが埋めていて
  * キャレットが来ないので (cursorAtContentStart: false)、その 1 つ内側を入口にする。
  */
 const joinDialogueBackward: Command = (state) => {

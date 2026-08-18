@@ -1,5 +1,6 @@
 import { Blockquote, basicSchema, history, Paragraph, Ruby, RubyBase, RubyText } from "tatefude";
-import { dots, ruby, strong, text } from "../content";
+import { rubyItem } from "../common";
+import { bouten, ruby, strong, text } from "../content";
 import type { Editor } from "../types";
 
 export const horizontal: Editor = {
@@ -8,6 +9,7 @@ export const horizontal: Editor = {
   description: "既定のスキーマ。段落・引用・ルビ・マーク",
   vertical: false,
   config: [basicSchema(), history()],
+  toolbar: [rubyItem],
   doc: (schema) =>
     schema.doc([
       Paragraph.create([text("EditContext で動くエディタの雛形です。")]),
@@ -15,7 +17,7 @@ export const horizontal: Editor = {
         text("日本語を入力すると "),
         strong("変換中の下線"),
         text(" が "),
-        dots("傍点"),
+        bouten("傍点"),
         text(" と decoration で描かれます。"),
       ]),
       Paragraph.create([

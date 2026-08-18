@@ -62,7 +62,7 @@ const RULES = `
 @keyframes tf-blink2 { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
 
 /* 中身が空のインラインブロックの代役。生成内容なので DOM のテキストには入らない。
-   こちらは**場所を取らせる** — 空の箱は大きさを失い、クリックもキャレットの測定もできない */
+   こちらは**場所を取らせる** — 空のインラインブロックは大きさを失い、クリックもキャレットの測定もできない */
 [data-tf-placeholder]:empty::before {
   content: attr(data-tf-placeholder);
   opacity: 0.45;
@@ -88,6 +88,6 @@ const RULES = `
   pointer-events: none;
 }
 
-/* 縦中横。箱の中だけ横組みになるので、キャレットもこの中では縦棒になる (矩形から決まる) */
+/* 縦中横。インラインブロックの中だけ横組みになるので、キャレットもこの中では縦棒になる (矩形から決まる) */
 .tf-tcy { text-combine-upright: all; }
 `;

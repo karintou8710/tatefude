@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { joinBackward, joinForward, splitBlock } from "../../src/commands/base";
 import { Leaf, Node, Plot } from "../../src/doc";
-import { Blockquote, basicSchema, Doc } from "../../src/schema-basic";
+import { Blockquote, basicSchema, Doc } from "../../src/extensions";
 import { TextSelection } from "../../src/state/selection";
 import { EditorState, schemaElement } from "../../src/state/state";
 import { p, ruby } from "./doc";

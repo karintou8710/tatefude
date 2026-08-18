@@ -4,6 +4,7 @@ import { EditContextManager } from "../ime/manager";
 import { handleBeforeInput } from "../input/beforeinput";
 import { handleKeyDown } from "../input/keymap";
 import { PointerSelection } from "../input/pointer";
+import { handleWheel } from "../input/wheel";
 import { decorations, type InlineDecoration } from "../state/decoration";
 import type { Selection } from "../state/selection";
 import type { EditorState } from "../state/state";
@@ -17,6 +18,7 @@ import {
   updateListener,
   type ViewUpdate,
 } from "./extension";
+import { scrollCaretIntoView } from "./scroll";
 import { SelectionHighlighter } from "./selection-highlight";
 import { injectEditorStyles } from "./styles";
 
@@ -65,6 +67,8 @@ export class EditorView {
     this.dom.addEventListener("keydown", this.onKeyDown);
     this.dom.addEventListener("beforeinput", this.onBeforeInput as EventListener);
     this.dom.addEventListener("mousedown", this.onMouseDown);
+    // preventDefault するので passive にはできない
+    this.dom.addEventListener("wheel", this.onWheel, { passive: false });
     document.addEventListener("selectionchange", this.onSelectionChange);
 
     this.render();
@@ -90,6 +94,11 @@ export class EditorView {
     this.state = state;
     this.render();
 
+    // 送るかはトランザクションが決める (state/transaction.ts の scrollIntoView)。
+    // 描き直しのたびに送ると、触っていない側のスクロール位置まで奪ってしまう。
+    // updateState を直に呼ぶ経路には tr が無いので、そのときは送らない
+    if (tr?.scrollIntoView) scrollCaretIntoView(this);
+
     const listeners = state.facet(updateListener);
     if (!listeners.length) return;
     const update: ViewUpdate = {
@@ -104,10 +113,8 @@ export class EditorView {
   }
 
   /**
-   * コマンドを今の state で試し、更新があれば流す。ツールバーとキー割り当ての入口。
-   *
-   * 焦点を戻すのは、ボタンを押すと EditContext を張った要素から焦点が外れるため。
-   * ただしボタン側で `mousedown` を `preventDefault()` しないと、押した時点の blur は防げない。
+   * コマンドを今の state で試し、更新があれば流す。
+   * 焦点を戻すのは、ツールバーを押すと EditContext を張った要素から外れるため。
    */
   run(command: Command): boolean {
     const spec = command(this.state);
@@ -193,6 +200,10 @@ export class EditorView {
     if (handleBeforeInput(this, event)) event.preventDefault();
   };
 
+  private onWheel = (event: WheelEvent): void => {
+    if (handleWheel(this, event)) event.preventDefault();
+  };
+
   private onMouseDown = (event: MouseEvent): void => {
     this.pointer.handleMouseDown(event);
   };
@@ -222,6 +233,7 @@ export class EditorView {
     this.dom.removeEventListener("keydown", this.onKeyDown);
     this.dom.removeEventListener("beforeinput", this.onBeforeInput as EventListener);
     this.dom.removeEventListener("mousedown", this.onMouseDown);
+    this.dom.removeEventListener("wheel", this.onWheel);
     document.removeEventListener("selectionchange", this.onSelectionChange);
     this.pointer.destroy();
     this.highlighter.destroy();

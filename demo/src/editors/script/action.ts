@@ -12,7 +12,7 @@ import {
 
 /** ト書き。動作や情景。Enter で作られる既定のブロック */
 export const Action = Plot.define("Action", {
-  // 文とルビと縦中横だけ。人物名 (Speaker) の箱はセリフのもの
+  // 文とルビと縦中横だけ。人物名 (Speaker) のインラインブロックはセリフのもの
   inlineContent: [Leaf.Text, Ruby, Tcy],
   group: Node.Group.Content,
   defaultBlock: true,

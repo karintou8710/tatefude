@@ -85,8 +85,8 @@ export function buildTextblockMap(block: Plot, blockFrom: number): TextblockMap 
         segments.push({ docFrom: pos, offset: text.length, length: child.length });
         text += child.text;
       } else if (child.isPlot) {
-        // 箱の外側の端は中の断片では表せない。0 文字の断片で押さえないと、そのオフセットから
-        // doc 位置に戻すとき必ず箱の中へ吸い込まれる
+        // インラインブロックの外側の端は中の断片では表せない。0 文字の断片で押さえないと、そのオフセットから
+        // doc 位置に戻すとき必ずインラインブロックの中へ吸い込まれる
         segments.push({ docFrom: pos, offset: text.length, length: 0 });
         scan(child, pos + 1);
         segments.push({ docFrom: pos + child.length, offset: text.length, length: 0 });

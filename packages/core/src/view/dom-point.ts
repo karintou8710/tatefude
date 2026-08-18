@@ -1,17 +1,16 @@
 import type { Node as DocNode, Plot } from "../doc";
 import type { TextblockView } from "./block-view";
-import { caretRectAt, domPointToBlockOffset, lineStartRect, writingModeOf } from "./coords";
+import {
+  caretRectAt,
+  domPointToBlockOffset,
+  fontCaretExtent,
+  lineStartRect,
+  writingModeOf,
+} from "./coords";
 
 /**
- * doc の位置から DOM 点を引く。**オフセットではなく位置で受けるのが要点**。
- *
- * インラインブロックの開き / 閉じは 0 文字なので、オフセットに畳むと「rb の末尾」と
- * 「rt の先頭」が同じ番号になり、どちらを指しているか分からなくなる。位置が持っている
- * 「どの箱の中か」を使って DOM を構造で降りれば、その情報を捨てずに済む。
- *
- * 降り方を doc から導けるのは、`renderInlineContent` がインラインブロックを
- * **doc の子の順どおりに直下の要素として**吐いているため。node view のように自分で DOM を
- * 描くノードが入ったら、この関数が view の木を引く形に変わる。呼び出し側は変わらない。
+ * doc の位置から DOM 点を引く。オフセットではなく位置で受けるのは、インラインブロックの開き / 閉じが
+ * 0 文字で「rb の末尾」と「rt の先頭」が同じ番号になるため。構造で降りればそれが残る。
  */
 export function blockPosToDOMPoint(
   block: TextblockView,
@@ -38,22 +37,27 @@ export function caretRectFor(block: TextblockView, pos: number): DOMRect {
     const { vertical } = writingModeOf(block.contentDOM);
 
     // 要素の子の境目を指しているとき (インラインブロックの直後など)。collapsed な Range は
-    // ここで箱の中の矩形を返してくるので、直前の要素の端から自分で作る
+    // ここでインラインブロックの中の矩形を返してくるので、直前の要素の端から自分で作る
     const before = point.offset > 0 ? element.childNodes[point.offset - 1] : null;
     if (before?.nodeType === 1) {
       const rect = (before as Element).getBoundingClientRect();
+      // 太さは箱ではなくフォントから測る。inline-flex の箱は丸ごと 1 行ぶんあるので、
+      // 箱の厚みをそのまま使うと行送りのぶんだけキャレットが太る (coords.ts)
+      const extent = fontCaretExtent(element);
       return vertical
-        ? new DOMRect(rect.left, rect.bottom, rect.width, 0)
-        : new DOMRect(rect.right, rect.top, 0, rect.height);
+        ? new DOMRect(rect.left + (rect.width - extent) / 2, rect.bottom, extent, 0)
+        : new DOMRect(rect.right, rect.top + (rect.height - extent) / 2, 0, extent);
     }
 
-    // 中身が空のインラインブロック。代役の生成内容のぶんだけ箱があるので、その先頭に置く
+    // 中身が空のインラインブロック。代役の生成内容のぶんだけ箱があるので、その先頭に置く。
+    // 太さは箱ではなくフォントから測り、文字の上と同じく行の真ん中に立てる (coords.ts)
     if (!element.hasChildNodes()) {
       const rect = element.getBoundingClientRect();
       if (rect.width || rect.height) {
+        const extent = fontCaretExtent(element);
         return vertical
-          ? new DOMRect(rect.left, rect.top, rect.width, 0)
-          : new DOMRect(rect.left, rect.top, 0, rect.height);
+          ? new DOMRect(rect.left + (rect.width - extent) / 2, rect.top, extent, 0)
+          : new DOMRect(rect.left, rect.top + (rect.height - extent) / 2, 0, extent);
       }
     }
   }
@@ -71,8 +75,8 @@ export function caretRectFor(block: TextblockView, pos: number): DOMRect {
 /**
  * DOM 点 → doc の位置。{@link blockPosToDOMPoint} の逆で、こちらも**オフセットに畳まない**。
  *
- * 点がインラインブロックの中にあれば、その箱に降りてから数えるので「ルビの読みをクリック
- * したら読みの中」になる。畳んでから戻すと必ず箱の外に出てしまう。
+ * 点がインラインブロックの中にあれば、そこへ降りてから数えるので「ルビの読みをクリック
+ * したら読みの中」になる。畳んでから戻すと必ずインラインブロックの外に出てしまう。
  */
 export function domPointToBlockPos(block: TextblockView, node: Node, offset: number): number {
   // 点を包んでいるインラインブロックを、外側から順に
@@ -99,14 +103,14 @@ export function domPointToBlockPos(block: TextblockView, node: Node, offset: num
   return posInPlot(plot, contentStart, domPointToBlockOffset(target, node, offset));
 }
 
-/** その箱の中の平らなオフセットを doc 位置に戻す */
+/** そのインラインブロックの中の平らなオフセットを doc 位置に戻す */
 function posInPlot(plot: Plot, contentStart: number, offset: number): number {
   let pos = contentStart;
   let seen = 0;
   for (const child of plot.content) {
     const length = flatLength(child);
     if (child.isLeaf && child.isText && seen + length >= offset) return pos + (offset - seen);
-    // 箱や atom の途中は指せないので、その手前に寄せる
+    // インラインブロックや atom の途中は指せないので、その手前に寄せる
     if (seen + length > offset) return pos;
     seen += length;
     pos += child.length;
@@ -148,7 +152,7 @@ interface Located {
   /**
    * ここまでに通り過ぎたインラインブロックの数。
    *
-   * **空の箱は 0 文字**なので、その手前と後ろが同じオフセットになる。オフセットだけ渡すと
+   * **空のインラインブロックは 0 文字**なので、その手前と後ろが同じオフセットになる。オフセットだけ渡すと
    * {@link pointInElement} が必ず手前を選んでしまうので、構造で解けるこの数も渡す。
    */
   passedBoxes: number;
@@ -168,7 +172,7 @@ function locate(target: HTMLElement, plot: Plot, contentStart: number, pos: numb
 
     if (child.isPlot) {
       const element = inlineChildAt(target, inlineIndex);
-      // 開きと閉じの内側なら、その箱に降りてから数え直す
+      // 開きと閉じの内側なら、そのインラインブロックに降りてから数え直す
       if (element && pos < to) return locate(element, child, from + 1, pos);
       inlineIndex++;
       offset += flatLength(child);
@@ -184,11 +188,8 @@ function locate(target: HTMLElement, plot: Plot, contentStart: number, pos: numb
 }
 
 /**
- * その要素の中だけを平らに数えて N 文字目の DOM 点を返す。
- *
- * **入れ子のインラインブロックには入らない**。中の位置なら {@link locate} が先に降りている
- * ので、ここに来た時点で「箱の外の位置」だと分かっている。中まで数えると、ruby の直後が
- * rt の末尾と同じ数になって吸い込まれる。
+ * その要素の中だけを平らに数えて N 文字目の DOM 点を返す。入れ子のインラインブロックには入らない
+ * (中なら {@link locate} が先に降りている)。数えると ruby の直後が rt の末尾に吸い込まれる。
  */
 function pointInElement(
   element: HTMLElement,
@@ -211,8 +212,8 @@ function pointInElement(
       } else if (child.nodeType === 1) {
         const el = child as Element;
         if (el.hasAttribute("data-tf-inline")) {
-          // 箱の手前ちょうどならここで確定する。飛ばすと後ろのテキストで負のオフセットになる。
-          // ただし locate が既に通り過ぎた箱なら手前ではない (空の箱は 0 文字なので、
+          // インラインブロックの手前ちょうどならここで確定する。飛ばすと後ろのテキストで負のオフセットになる。
+          // ただし locate が既に通り過ぎたインラインブロックなら手前ではない (空なら 0 文字なので、
           // オフセットが同じままここへ来る)
           if (seen >= offset && boxes >= passedBoxes) return { node: parent, offset: i };
           boxes++;
