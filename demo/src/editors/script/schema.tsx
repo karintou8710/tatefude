@@ -1,3 +1,4 @@
+import { ChatBubbleIcon, HeadingIcon, TextIcon } from "@radix-ui/react-icons";
 import {
   boutenExtension,
   docExtension,
@@ -42,9 +43,9 @@ export function scriptSchema(): Extension {
 
 /** ツールバーの並び。ノード側が export したコマンドを繋ぐだけ */
 export const scriptToolbar: readonly ToolbarItem[] = [
-  { label: "柱", command: setSceneHeading, isActive: blockIs(SceneHeading) },
-  { label: "ト書き", command: setAction, isActive: blockIs(Action) },
-  { label: "セリフ", command: setDialogue, isActive: blockIs(Dialogue) },
+  { label: "柱", icon: <HeadingIcon />, command: setSceneHeading, isActive: blockIs(SceneHeading) },
+  { label: "ト書き", icon: <TextIcon />, command: setAction, isActive: blockIs(Action) },
+  { label: "セリフ", icon: <ChatBubbleIcon />, command: setDialogue, isActive: blockIs(Dialogue) },
   rubyItem,
   tcyItem,
 ];

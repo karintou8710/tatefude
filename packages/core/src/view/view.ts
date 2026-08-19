@@ -11,6 +11,7 @@ import type { EditorState } from "../state/state";
 import { Transaction, type TransactionSpec } from "../state/transaction";
 import { type BlockNodeView, syncBlockChildren, type TextblockView } from "./block-view";
 import { CaretLayer } from "./caret";
+import { blockPosRange, caretRectFor } from "./dom-point";
 import { readDOMSelection, writeDOMSelection } from "./dom-selection";
 import {
   handleBeforeInput as handleBeforeInputFacet,
@@ -165,6 +166,29 @@ export class EditorView {
     return block ? this.textblocks.indexOf(block) : -1;
   }
 
+  /**
+   * 選択の外接矩形 (viewport 座標)。吹き出しの位置決めに使う。
+   * 空の選択ならキャレットの矩形。ブロックを跨ぐ選択はブロックごとに測って束ねる —
+   * 1 本の Range にするとブロックの間の余白まで含んでしまう
+   */
+  selectionRect(): DOMRect | null {
+    const { from, to, empty } = this.state.selection;
+    if (empty) {
+      const block = this.textblockAt(from);
+      return block ? caretRectFor(block, from) : null;
+    }
+    let box: DOMRect | null = null;
+    for (const block of this.textblocks) {
+      const start = Math.max(from, block.contentFrom);
+      const end = Math.min(to, block.contentTo);
+      if (start >= end) continue;
+      for (const rect of blockPosRange(block, start, end).getClientRects()) {
+        box = box ? union(box, rect) : rect;
+      }
+    }
+    return box;
+  }
+
   textblockForDOM(node: globalThis.Node | null): TextblockView | null {
     if (!node) return null;
     const element =
@@ -246,4 +270,15 @@ export class EditorView {
     this.byDOM.clear();
     this.dom.remove();
   }
+}
+
+function union(a: DOMRect, b: DOMRect): DOMRect {
+  const left = Math.min(a.left, b.left);
+  const top = Math.min(a.top, b.top);
+  return new DOMRect(
+    left,
+    top,
+    Math.max(a.right, b.right) - left,
+    Math.max(a.bottom, b.bottom) - top,
+  );
 }

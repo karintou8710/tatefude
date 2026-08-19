@@ -90,7 +90,11 @@ export function usePageScroll(
 
     const contentTop =
       dom.getBoundingClientRect().top + Number.parseFloat(getComputedStyle(dom).paddingTop);
-    const page = Math.floor((caret.getBoundingClientRect().top - contentTop) / period);
+    // **下端で見る** — キャレットは行の縁を跨いで描かれるので、ページの先頭では
+    // 上端が紙から半分はみ出す。上端で割るとひとつ前のページと判定され、
+    // 行頭で Enter を押すたびに紙が 1 枚戻ってしまう。
+    // 紙の終わりには地の余白があるので、下端がページを跨ぐことはない
+    const page = Math.floor((caret.getBoundingClientRect().bottom - contentTop) / period);
     if (page === shown.current) return;
     const first = shown.current < 0;
     shown.current = page;

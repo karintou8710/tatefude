@@ -14,45 +14,21 @@ export const SELECTION_HIGHLIGHT_NAME = "tf-selection";
  */
 export const INLINE_ACTIVE_HIGHLIGHT_NAME = "tf-inline-active";
 
-interface HighlightLike {
-  add(range: Range): void;
-  delete(range: Range): void;
-  clear(): void;
-}
-
-interface HighlightRegistryLike {
-  set(name: string, highlight: HighlightLike): void;
-  get(name: string): HighlightLike | undefined;
-  delete(name: string): void;
-}
-
-type HighlightConstructor = new (...ranges: Range[]) => HighlightLike;
-
-function registry(): HighlightRegistryLike | null {
-  const css = (globalThis as { CSS?: { highlights?: HighlightRegistryLike } }).CSS;
-  return css?.highlights ?? null;
-}
-
-function highlightConstructor(): HighlightConstructor | null {
-  return (globalThis as { Highlight?: HighlightConstructor }).Highlight ?? null;
-}
-
+/** 型はあってもブラウザに実装が無いことがある */
 export function isHighlightSupported(): boolean {
-  return registry() !== null && highlightConstructor() !== null;
+  return typeof Highlight !== "undefined" && typeof CSS !== "undefined" && !!CSS.highlights;
 }
 
 /** 名前ごとにページに 1 つ。複数のエディタが同じ Highlight に range を出し入れする */
-const shared = new Map<string, HighlightLike>();
+const shared = new Map<string, Highlight>();
 
-function ensureHighlight(name: string): HighlightLike | null {
+function ensureHighlight(name: string): Highlight | null {
   const found = shared.get(name);
   if (found) return found;
-  const store = registry();
-  const Ctor = highlightConstructor();
-  if (!store || !Ctor) return null;
-  const highlight = new Ctor();
+  if (!isHighlightSupported()) return null;
+  const highlight = new Highlight();
   shared.set(name, highlight);
-  store.set(name, highlight);
+  CSS.highlights.set(name, highlight);
   return highlight;
 }
 

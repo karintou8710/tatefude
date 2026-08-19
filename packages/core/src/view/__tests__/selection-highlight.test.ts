@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Leaf, type Plot } from "../../src/doc";
-import { basicSchema, Paragraph, Ruby, RubyBase, RubyText } from "../../src/extensions";
-import { TextSelection } from "../../src/state/selection";
-import { EditorState } from "../../src/state/state";
+import { Leaf, type Plot } from "../../doc";
+import { basicSchema, Paragraph, Ruby, RubyBase, RubyText } from "../../extensions";
+import { TextSelection } from "../../state/selection";
+import { EditorState } from "../../state/state";
 import {
   INLINE_ACTIVE_HIGHLIGHT_NAME,
   isHighlightSupported,
   SELECTION_HIGHLIGHT_NAME,
-} from "../../src/view/selection-highlight";
-import { EditorView } from "../../src/view/view";
+} from "../selection-highlight";
+import { EditorView } from "../view";
 
 let place: HTMLElement;
 let view: EditorView;

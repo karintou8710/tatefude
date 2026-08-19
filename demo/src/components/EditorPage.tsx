@@ -1,8 +1,9 @@
 import type React from "react";
 import { useRef } from "react";
 import { updateListener } from "tatefude";
-import { EditorContent, useEditor, useEditorState } from "tatefude-react";
+import { BubbleMenu, EditorContent, useEditor, useEditorState } from "tatefude-react";
 import type { Editor } from "../editors";
+import { inlineItems } from "../editors/toolbar-items";
 import styles from "./EditorPage.module.css";
 import { usePageCount, usePageScroll } from "./pagination";
 import { Toolbar } from "./Toolbar";
@@ -44,6 +45,13 @@ export function EditorPage({ editor: spec }: { editor: Editor }) {
         <div ref={toolbarRef} className={styles.toolbarBar}>
           <Toolbar editor={editor} items={spec.toolbar ?? []} />
         </div>
+        {/* 選択したときだけ浮く。ブロックの型はキャレットだけで押せるので外す */}
+        <BubbleMenu editor={editor} className={styles.bubble}>
+          <Toolbar
+            editor={editor}
+            items={(spec.toolbar ?? []).filter((item) => inlineItems.includes(item))}
+          />
+        </BubbleMenu>
         <section className={paneClass(spec)}>
           <EditorContent editor={editor} className={styles.host} />
           <PageNumbers count={pages} />
@@ -56,6 +64,7 @@ export function EditorPage({ editor: spec }: { editor: Editor }) {
 /**
  * ノンブル。段はブロックではないので counter で数えられず、位置も要素として存在しない。
  * ページ数は usePageCount が持っているので、その数だけ置いて周期で並べる。
+ *
  */
 function PageNumbers({ count }: { count: number }) {
   if (!count) return null;

@@ -1,7 +1,7 @@
 import type { Plot, Pos } from "../doc";
 import { resolveNear, Selection, TextSelection } from "../state/selection";
 import type { TextblockView } from "../view/block-view";
-import { caretPointFromCoords, isOnEdgeLine, lineBandsOf, writingModeOf } from "../view/coords";
+import { caretPointFromCoords, lineAdvanceOf, writingModeOf } from "../view/coords";
 import { caretRectFor, domPointToBlockPos } from "../view/dom-point";
 import type { EditorView } from "../view/view";
 import { alongOf, crossToAdjacentBlock, snapToAlong } from "./boundary";
@@ -187,11 +187,10 @@ function moveByLine(view: EditorView, backward: boolean, extend: boolean): boole
   const goal = view.verticalGoal;
   const along = goal?.head === selection.head ? goal.along : alongOf(block, selection.head);
 
-  const offset = block.text.posToOffset(selection.head);
-  if (!isOnEdgeLine(block.contentDOM, offset, backward ? -1 : 1)) {
-    const next = posOnNextLine(view.state.doc, block, selection.head, backward, along);
-    if (next != null) return setHead(view, next, extend, along);
-  }
+  // 端の行かどうかも描画から決まる。隣の行が引けなければブロックを跨ぐ
+  const next = posOnNextLine(view.state.doc, block, selection.head, backward, along);
+  // 段を跨ぐと目標座標もそのぶんずれる。持ち越すのは動いた後の値
+  if (next) return setHead(view, next.pos, extend, next.along);
 
   const head = crossToAdjacentBlock(view, index, backward, along);
   if (head != null) return setHead(view, head, extend, along);
@@ -215,11 +214,23 @@ function setHead(view: EditorView, head: number, extend: boolean, along?: number
   return true;
 }
 
+/** ブロックの断片 (段組みで割れた 1 つぶん)。block 軸とインライン軸に読み替えたもの */
+interface Fragment {
+  blockStart: number;
+  blockEnd: number;
+  inlineStart: number;
+  inlineEnd: number;
+}
+
 /**
- * 隣の行の、インライン方向で `along` に一番近い位置。無ければ null。
+ * 隣の行の位置と、そこでのインライン方向の目標。無ければ null。
  *
- * 座標を 1 行送りぶんずらす方法は段組みで破綻する — 段の最後の行の隣は、次の段の
- * **先頭**にあってブロック方向もインライン方向も飛ぶ。行の矩形を文書順に並べて隣を採る。
+ * ふつうは block 軸に 1 行送りぶんずらして引くだけ。ただし**ずらした先が断片の外なら
+ * 引いてはいけない** — caretPositionFromPoint は近くの別の段に吸着するので、
+ * 段を行き来するだけになる。断片の外に出たら次の断片の入口へ回す。
+ *
+ * ページは書字方向によらず縦に積まれるので、断片が変わるとインライン方向もそのぶんずれる。
+ * 目標座標を持ち越すのは呼び出し側なので、ずらした後の値を返す。
  */
 function posOnNextLine(
   doc: Plot,
@@ -227,26 +238,84 @@ function posOnNextLine(
   pos: number,
   backward: boolean,
   along: number,
-): number | null {
-  const { vertical } = writingModeOf(block.contentDOM);
+): { pos: number; along: number } | null {
+  const { vertical, blockForwardIsPositive } = writingModeOf(block.contentDOM);
   const caret = caretRectFor(block, pos);
-  const bands = lineBandsOf(block.contentDOM);
+  // キャレットの太さでずらすと行の中の余りに落ちて同じ行へ戻るので、行送りで刻む
+  const lineSize = lineAdvanceOf(block.contentDOM, vertical ? caret.width : caret.height);
+  const towardNegative = blockForwardIsPositive ? backward : !backward;
   const center = vertical ? (caret.left + caret.right) / 2 : (caret.top + caret.bottom) / 2;
-  const index = bands.findIndex(
-    (band) => center >= band.blockStart - 1 && center <= band.blockEnd + 1,
-  );
-  const next = bands[index + (backward ? -1 : 1)];
-  if (index < 0 || !next) return null;
+  const stepped = center + (towardNegative ? -lineSize : lineSize);
 
-  // 行の中に押し込む。端ちょうどだと隣の行に当たることがあるので 1px 内側
-  const inline = Math.min(Math.max(along, next.start + 1), next.end - 1);
-  const blockCoord = (next.blockStart + next.blockEnd) / 2;
-  const point = caretPointFromCoords(
-    vertical ? blockCoord : inline,
-    vertical ? inline : blockCoord,
-  );
+  const fragments = fragmentsOf(block.contentDOM, vertical);
+  const index = fragments.findIndex((f) => holds(f, center, along));
+  const here = fragments[index];
+
+  // 同じ断片の中で収まるなら、そのままずらすだけ。ただし**引けた結果も確かめる** —
+  // 断片の縁では caretPositionFromPoint が隣の段の行に吸着する
+  if (here && stepped >= here.blockStart && stepped <= here.blockEnd) {
+    const found = posAtCoords(doc, block, vertical, stepped, along);
+    if (found != null && sits(block, found, vertical, here)) return { pos: found, along };
+  }
+
+  const next = fragments[index + (backward ? -1 : 1)];
+  if (!here || !next) return null;
+
+  // 断片の入口は進む向きの手前側。座標が減る向きに進むなら大きい側から入る
+  const half = lineSize / 2;
+  const entry = towardNegative ? next.blockEnd - half : next.blockStart + half;
+  const shifted = along - here.inlineStart + next.inlineStart;
+  const found = posAtCoords(doc, block, vertical, entry, shifted);
+  return found == null ? null : { pos: found, along: shifted };
+}
+
+/** block 軸とインライン軸の座標から doc 位置を引く。ブロックの外を指していたら null */
+function posAtCoords(
+  doc: Plot,
+  block: TextblockView,
+  vertical: boolean,
+  blockCoord: number,
+  along: number,
+): number | null {
+  const point = caretPointFromCoords(vertical ? blockCoord : along, vertical ? along : blockCoord);
   if (!point || !block.contentDOM.contains(point.node)) return null;
   return snapToAlong(doc, block, domPointToBlockPos(block, point.node, point.offset), along);
+}
+
+/** ブロックの矩形は断片ごとに返る。段組みで割れていなければ 1 つ */
+function fragmentsOf(blockDOM: HTMLElement, vertical: boolean): Fragment[] {
+  return [...blockDOM.getClientRects()].map((rect) =>
+    vertical
+      ? {
+          blockStart: rect.left,
+          blockEnd: rect.right,
+          inlineStart: rect.top,
+          inlineEnd: rect.bottom,
+        }
+      : {
+          blockStart: rect.top,
+          blockEnd: rect.bottom,
+          inlineStart: rect.left,
+          inlineEnd: rect.right,
+        },
+  );
+}
+
+/** その位置のキャレットがこの断片の中に立つか */
+function sits(block: TextblockView, pos: number, vertical: boolean, fragment: Fragment): boolean {
+  const rect = caretRectFor(block, pos);
+  const blockCoord = vertical ? (rect.left + rect.right) / 2 : (rect.top + rect.bottom) / 2;
+  return holds(fragment, blockCoord, vertical ? rect.top : rect.left);
+}
+
+/** その点がこの断片の中か。端ちょうどを落とさないよう 1px 緩める */
+function holds(fragment: Fragment, block: number, inline: number): boolean {
+  return (
+    block >= fragment.blockStart - 1 &&
+    block <= fragment.blockEnd + 1 &&
+    inline >= fragment.inlineStart - 1 &&
+    inline <= fragment.inlineEnd + 1
+  );
 }
 
 const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });

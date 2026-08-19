@@ -58,12 +58,16 @@
   /* 1 枚の紙 = 本文の領域 + その上下の余白。紙と紙の間に机が見える。
      段組みが持っているのは「段 (= 本文の領域)」と「段の隙間」だけなので、
      隙間の内訳を余白 2 つ + 机に分けて背景で描き分ける */
-  --page-pad: 22px;
+  /* 紙の上下 (縦書きなので行頭 / 行末側) の余白。エディタ側が --sheet-pad で両方、
+     --sheet-pad-foot で地だけ変えられる (本の組みでは地を天より広く取る)。
+     詳細度を積み上げて勝たせるより、変数で渡すほうが後から追いやすい (--line-length と同じ) */
+  --page-pad: var(--sheet-pad, 22px);
   --sheet-gap: 26px;
-  --gutter: calc(var(--page-pad) * 2 + var(--sheet-gap));
   /* 1 ページ目の上と最終ページの下にも同じ余白を付ける */
   --pad-head: var(--page-pad);
-  --pad-foot: var(--page-pad);
+  --pad-foot: var(--sheet-pad-foot, var(--page-pad));
+  /* 紙と紙の間 = 上の紙の地 + 下の紙の天 + 机 */
+  --gutter: calc(var(--pad-foot) + var(--pad-head) + var(--sheet-gap));
   --sheet-bg: #fff;
   /* 紙と紙の間はページの地と同じ色。紙 (白) だけが浮いて見える */
   --desk-bg: var(--bg);
@@ -71,10 +75,10 @@
      そのまま見せる。色の出どころを 1 つにするため */
   --page-bg: repeating-linear-gradient(
     to bottom,
-    var(--sheet-bg) 0 calc(var(--page-length) + var(--page-pad)),
-    transparent calc(var(--page-length) + var(--page-pad))
-      calc(var(--page-length) + var(--page-pad) + var(--sheet-gap)),
-    var(--sheet-bg) calc(var(--page-length) + var(--page-pad) + var(--sheet-gap))
+    var(--sheet-bg) 0 calc(var(--page-length) + var(--pad-foot)),
+    transparent calc(var(--page-length) + var(--pad-foot))
+      calc(var(--page-length) + var(--pad-foot) + var(--sheet-gap)),
+    var(--sheet-bg) calc(var(--page-length) + var(--pad-foot) + var(--sheet-gap))
       calc(var(--page-length) + var(--gutter))
   );
 
@@ -115,7 +119,7 @@
     (var(--page-length) + var(--gutter)) +
     var(--page-length)
   );
-  height: var(--page-pad);
+  height: var(--pad-foot);
   display: grid;
   place-items: center;
   font-size: 11px;
@@ -150,4 +154,13 @@
      background-image をエディタ側で丸ごと上書きすると、詳細度でこちらが勝って消える */
   background-image: var(--rule-bg, none), var(--page-bg);
   background-origin: content-box;
+}
+
+/* 選択の上に浮く道具箱。位置は BubbleMenu が付ける */
+.bubble {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--pane-bg);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.18);
+  padding: 4px;
 }

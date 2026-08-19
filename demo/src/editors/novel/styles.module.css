@@ -8,7 +8,11 @@
   --font: 17px;
   /* 行送りは字送りの 1.75 倍。文庫の目安 */
   --line-advance: calc(var(--font) * 1.75);
-  --paper-margin: 40px;
+  /* 天地 (行頭 / 行末側) と小口 (行の積み方向) の余白。本文が紙の端に寄らないよう広く取る。
+     地はノンブルが入るので天より広く。本の組みでも地のほうを広く取る */
+  --sheet-pad: 32px;
+  --sheet-pad-foot: 60px;
+  --paper-margin: 52px;
 
   /* 縦書きでは inline 軸が行の長さ。全角 1 文字 = 1em なので、字数がそのまま長さ */
   --page-length: calc(var(--font) * var(--chars));
@@ -47,4 +51,10 @@
 
 .scroll :global(.tf-editor) {
   padding: 24px 32px;
+}
+
+/* 改ページ。段 = 1 ページなので、段の頭から始めれば新しいページになる。
+   縦書きでも段は inline 軸 (縦) に積まれるので、column の break がそのまま効く */
+.novel :global(.novel-page-start) {
+  break-before: column;
 }

@@ -1,9 +1,12 @@
+import type { ReactNode } from "react";
 import type { Command, EditorState } from "tatefude";
 import { type EditorHandle, useEditorState } from "tatefude-react";
 import styles from "./Toolbar.module.css";
 
 export interface ToolbarItem {
   label: string;
+  /** 見出しに添える絵。無くても label だけで成立する */
+  icon?: ReactNode;
   command: Command;
   /** 押下状態。今の state から引く */
   isActive?(state: EditorState): boolean;
@@ -47,6 +50,7 @@ function ToolbarButton({ editor, item }: { editor: EditorHandle; item: ToolbarIt
       onMouseDown={(event) => event.preventDefault()}
       onClick={() => editor.run(item.command)}
     >
+      {item.icon}
       {item.label}
     </button>
   );

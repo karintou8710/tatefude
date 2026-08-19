@@ -1,5 +1,4 @@
-import type { Node as DocNode, Plot } from "../doc";
-import type { TextblockView } from "./block-view";
+import type { Node as DocNode, Plot, TextblockMap } from "../doc";
 import {
   caretRectAt,
   domPointToBlockOffset,
@@ -9,18 +8,32 @@ import {
 } from "./coords";
 
 /**
+ * このモジュールが要るのは「ブロックの DOM」「doc の部分木」「その開始位置」だけ。
+ * {@link TextblockView} はこれを構造的に満たすので、呼び出し側は view をそのまま渡せる。
+ * 単体テストは DOM と Plot を手で組んで差せる。
+ */
+export interface BlockMapping {
+  readonly contentDOM: HTMLElement;
+  readonly node: Plot;
+  /** ブロックの中身が始まる doc 位置 */
+  readonly contentFrom: number;
+  /** 矩形が取れないときの代用に使う */
+  readonly text: TextblockMap;
+}
+
+/**
  * doc の位置から DOM 点を引く。オフセットではなく位置で受けるのは、インラインブロックの開き / 閉じが
  * 0 文字で「rb の末尾」と「rt の先頭」が同じ番号になるため。構造で降りればそれが残る。
  */
 export function blockPosToDOMPoint(
-  block: TextblockView,
+  block: BlockMapping,
   pos: number,
 ): { node: Node; offset: number } {
   const found = locate(block.contentDOM, block.node, block.contentFrom, pos);
   return pointInElement(found.element, found.offset, found.passedBoxes);
 }
 
-export function blockPosRange(block: TextblockView, from: number, to: number): Range {
+export function blockPosRange(block: BlockMapping, from: number, to: number): Range {
   const start = blockPosToDOMPoint(block, from);
   const end = blockPosToDOMPoint(block, to);
   const range = document.createRange();
@@ -29,38 +42,11 @@ export function blockPosRange(block: TextblockView, from: number, to: number): R
   return range;
 }
 
-export function caretRectFor(block: TextblockView, pos: number): DOMRect {
+export function caretRectFor(block: BlockMapping, pos: number): DOMRect {
   const point = blockPosToDOMPoint(block, pos);
 
-  if (point.node.nodeType === 1) {
-    const element = point.node as Element;
-    const { vertical } = writingModeOf(block.contentDOM);
-
-    // 要素の子の境目を指しているとき (インラインブロックの直後など)。collapsed な Range は
-    // ここでインラインブロックの中の矩形を返してくるので、直前の要素の端から自分で作る
-    const before = point.offset > 0 ? element.childNodes[point.offset - 1] : null;
-    if (before?.nodeType === 1) {
-      const rect = (before as Element).getBoundingClientRect();
-      // 太さは箱ではなくフォントから測る。inline-flex の箱は丸ごと 1 行ぶんあるので、
-      // 箱の厚みをそのまま使うと行送りのぶんだけキャレットが太る (coords.ts)
-      const extent = fontCaretExtent(element);
-      return vertical
-        ? new DOMRect(rect.left + (rect.width - extent) / 2, rect.bottom, extent, 0)
-        : new DOMRect(rect.right, rect.top + (rect.height - extent) / 2, 0, extent);
-    }
-
-    // 中身が空のインラインブロック。代役の生成内容のぶんだけ箱があるので、その先頭に置く。
-    // 太さは箱ではなくフォントから測り、文字の上と同じく行の真ん中に立てる (coords.ts)
-    if (!element.hasChildNodes()) {
-      const rect = element.getBoundingClientRect();
-      if (rect.width || rect.height) {
-        const extent = fontCaretExtent(element);
-        return vertical
-          ? new DOMRect(rect.left + (rect.width - extent) / 2, rect.top, extent, 0)
-          : new DOMRect(rect.left, rect.top + (rect.height - extent) / 2, 0, extent);
-      }
-    }
-  }
+  const onBox = caretRectOnInlineBox(point, block.contentDOM);
+  if (onBox) return onBox;
 
   const range = document.createRange();
   range.setStart(point.node, point.offset);
@@ -73,12 +59,53 @@ export function caretRectFor(block: TextblockView, pos: number): DOMRect {
 }
 
 /**
+ * インラインブロックの縁に立つキャレット。**collapsed な Range では取れない 2 つの場合**を
+ * 引き受ける。当てはまらなければ null で、呼び出し側は Range に落ちる。
+ *
+ * - 箱の直後 — Range は箱の**中**の矩形を返してくるので、直前の要素の端から作る
+ * - 中身が空の箱 — Range が矩形を返さない。代役の生成内容のぶんだけ箱があるので、その先頭
+ */
+function caretRectOnInlineBox(
+  point: { node: Node; offset: number },
+  blockDOM: HTMLElement,
+): DOMRect | null {
+  if (point.node.nodeType !== 1) return null;
+  const element = point.node as Element;
+  const { vertical } = writingModeOf(blockDOM);
+
+  const before = point.offset > 0 ? element.childNodes[point.offset - 1] : null;
+  if (before?.nodeType === 1) {
+    return caretOnEdge((before as Element).getBoundingClientRect(), element, vertical, true);
+  }
+
+  if (!element.hasChildNodes()) {
+    const box = element.getBoundingClientRect();
+    if (box.width || box.height) return caretOnEdge(box, element, vertical, false);
+  }
+  return null;
+}
+
+/**
+ * 箱の縁に立てるキャレット。`atEnd` はインライン方向の終わり側 (縦書きなら下)。
+ *
+ * 太さは箱ではなく**フォントから測る**。inline-flex の箱は block 軸が丸ごと 1 行ぶんある
+ * ので、箱の厚みをそのまま使うと行送りのぶんだけ太る (coords.ts)。文字の上と同じく
+ * 行の真ん中に立てる。
+ */
+function caretOnEdge(box: DOMRect, element: Element, vertical: boolean, atEnd: boolean): DOMRect {
+  const extent = fontCaretExtent(element);
+  return vertical
+    ? new DOMRect(box.left + (box.width - extent) / 2, atEnd ? box.bottom : box.top, extent, 0)
+    : new DOMRect(atEnd ? box.right : box.left, box.top + (box.height - extent) / 2, 0, extent);
+}
+
+/**
  * DOM 点 → doc の位置。{@link blockPosToDOMPoint} の逆で、こちらも**オフセットに畳まない**。
  *
  * 点がインラインブロックの中にあれば、そこへ降りてから数えるので「ルビの読みをクリック
  * したら読みの中」になる。畳んでから戻すと必ずインラインブロックの外に出てしまう。
  */
-export function domPointToBlockPos(block: TextblockView, node: Node, offset: number): number {
+export function domPointToBlockPos(block: BlockMapping, node: Node, offset: number): number {
   // 点を包んでいるインラインブロックを、外側から順に
   const boxes: Element[] = [];
   let element = node.nodeType === 1 ? (node as Element) : node.parentElement;

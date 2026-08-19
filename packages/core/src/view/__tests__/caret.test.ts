@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Leaf, Node, Plot } from "../../src/doc";
-import { basicSchema, Doc, Paragraph, Ruby, RubyBase, RubyText } from "../../src/extensions";
-import { TextSelection } from "../../src/state/selection";
-import { EditorState, schemaElement } from "../../src/state/state";
-import { EditorView } from "../../src/view/view";
+import { Leaf, Node, Plot } from "../../doc";
+import { basicSchema, Doc, Paragraph, Ruby, RubyBase, RubyText } from "../../extensions";
+import { TextSelection } from "../../state/selection";
+import { EditorState, schemaElement } from "../../state/state";
+import { EditorView } from "../view";
 
 let place: HTMLElement;
 let view: EditorView;

@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Leaf, type Plot } from "../../src/doc";
-import { basicSchema, Paragraph } from "../../src/extensions";
-import { arrowMotion } from "../../src/input/arrow";
-import { TextSelection } from "../../src/state/selection";
-import { EditorState } from "../../src/state/state";
-import { blockOffsetRange, isOnEdgeLine } from "../../src/view/coords";
-import { EditorView } from "../../src/view/view";
+import { Leaf, type Plot } from "../../doc";
+import { basicSchema, Paragraph } from "../../extensions";
+import { arrowMotion } from "../../input/arrow";
+import { TextSelection } from "../../state/selection";
+import { EditorState } from "../../state/state";
+import { blockOffsetRange, isOnEdgeLine } from "../coords";
+import { EditorView } from "../view";
 
 let place: HTMLElement;
 let view: EditorView;
