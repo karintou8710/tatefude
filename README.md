@@ -44,9 +44,9 @@ const canUndo = useEditorState(editor, (state) => undoDepth(state) > 0);
 <EditorContent editor={editor} />;
 ```
 
-**選択の塗りは利用側が書く。** ネイティブの選択描画は編集ホスト = 1 ブロックの境界で
-丸められるので、透明にして model の選択を CSS Custom Highlight で塗っている。
-指定が無いと選択が見えない。
+**選択はネイティブではなく CSS Custom Highlight で塗る。** ネイティブの選択描画は
+編集ホスト = 1 ブロックの境界で丸められるので、透明にして model の選択を塗り直している。
+既定はシステムの選択色なので指定は要らない。変えたいときは上書きする。
 
 ```css
 /* 選択 */
