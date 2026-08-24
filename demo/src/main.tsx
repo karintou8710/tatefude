@@ -9,7 +9,8 @@ if (!place) throw new Error("#root がない");
 
 createRoot(place).render(
   <StrictMode>
-    <BrowserRouter>
+    {/* Pages では /<リポジトリ名>/ の下に置かれるので、vite の base をそのまま渡す */}
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <App />
     </BrowserRouter>
   </StrictMode>,

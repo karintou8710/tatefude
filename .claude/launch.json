@@ -7,6 +7,20 @@
       "runtimeArgs": ["dev"],
       "port": 5180,
       "autoPort": true
+    },
+    {
+      "name": "demo-pages",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@tatefude/demo",
+        "exec",
+        "vite",
+        "preview",
+        "--base=/tatefude/",
+        "--port=5181"
+      ],
+      "port": 5181
     }
   ]
 }
