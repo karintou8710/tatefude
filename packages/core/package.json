@@ -1,7 +1,7 @@
 {
   "name": "tatefude",
   "version": "0.0.0",
-  "description": "EditContext API を土台にした ProseMirror ライクな RTE ライブラリ",
+  "description": "EditContext API を土台にした Wordgard ライクな RTE ライブラリ",
   "license": "MIT",
   "type": "module",
   "files": [

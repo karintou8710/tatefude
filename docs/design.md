@@ -1,6 +1,6 @@
 # tatefude 雛形設計
 
-EditContext API を土台にした ProseMirror ライクな RTE ライブラリ。
+EditContext API を土台にした Wordgard ライクな RTE ライブラリ。
 contenteditable の DOM 監視・修復を一切持たないことが設計上の主張。
 
 決定事項:
@@ -8,7 +8,7 @@ contenteditable の DOM 監視・修復を一切持たないことが設計上�
 - ランタイム依存ゼロ。**モデルと構成の仕組みは Wordgard 由来**
   (doc は Plot / Leaf / Tag / Shape / Query ベースの Schema、state は facet / extension。
   `src/doc/` は Wordgard の doc パッケージから派生している → LICENSE)。
-  変更の表現だけ ProseMirror 寄りのステップ列 (§10, §11)
+  変更の表現 (ChangeSet / Slice / Token / fit) も同じ (§10, §11)
 - **EditContext はブロック要素ごとに 1 つ**。各ブロックのバッファはそのブロックの全文を持ち、
   全ブロック分を常に保持する
 - M0 の範囲は §6
@@ -81,8 +81,8 @@ contenteditable フォールバックは非スコープ。
 
 ## 1. 設計の主張
 
-ProseMirror の view 層はコードの多くが「ブラウザが DOM を壊した後の復元」
-(DOMObserver / readDOMChange / composition のワークアラウンド) に費やされている。
+contenteditable を土台にしたエディタは、view 層のコードの多くが「ブラウザが DOM を壊した
+後の復元」(DOM の監視、読み戻し、IME のワークアラウンド) に費やされる。
 EditContext では DOM が書き換わらないので、
 
 - **view は `(doc, selection, decorations) → DOM` の純粋な描画関数になる**
@@ -143,7 +143,7 @@ doc                                    DOM                              EditCont
 ```
 
 view はブロックの構造だけを木で持ち (`BlockNodeView` = `TextblockView` / `ContainerView`)、
-**インラインの中には降りない**。ViewDesc を持たないという主張はインライン層のもので、
+**インラインの中には降りない**。インラインごとに view を持たないという主張はインライン層のもので、
 ブロック層は doc がそうである以上、木になる。
 
 木と同時に、**テキストブロックを文書順に並べた配列 (`EditorView.textblocks`) を
@@ -356,7 +356,7 @@ onTextUpdate(block: BlockHandle, e: TextUpdateEvent) {
 
 ### IME 変換中の表示
 
-変換文字列は **doc に直接入れる** (ProseMirror と同じ)。
+変換文字列は **doc に直接入れる**。
 下線は doc のマークではなく **decoration** として描く。
 
 - `textformatupdate` → `TextFormat[]` を offset → pos に写して inline decoration 化
@@ -487,14 +487,14 @@ tatefude/
 - `TextblockMap` (旧 `block-text.ts`) は `ime/` ではなく `doc/` に置いた。DOM の選択を
   doc 位置に読み替えるときに view からも要るので、EditContext より下の層に居るべきだった
   (Wordgard は同じものを `state/textblock.ts` に置いている)
-- ProseMirror の ViewDesc のような木は要らなかった。ブロック内の DOM 位置 ↔ オフセットは
+- 描画した DOM の対応表を木で持つ必要は無かった。ブロック内の DOM 位置 ↔ オフセットは
   `Range.toString().length` と TreeWalker で計算できる (`view/coords.ts`)。
   ブロック単位でしか対応表を持たないので、これで足りる
 - ステップは `ReplaceTextStep` / `SplitBlockStep` / `JoinBlockStep` / `MarkStep` の 4 つ。
   Slice を持たずに済ませているので、貼り付け (M1) で作り直しになるはず
 
 層の依存方向は `model → transform → state → view → ime / input / commands` の一方向。
-`ime/` が `view/` の座標計算と ViewDesc に依存するのは許すが、逆は禁止
+`ime/` が `view/` の座標計算と `BlockNodeView` に依存するのは許すが、逆は禁止
 (`view/` は EditContext の存在を知らない)。
 
 ---
@@ -636,8 +636,7 @@ core が React に依存しないので「依存ゼロ」が保てる。アダ�
 ## 10. ドキュメントモデル (Wordgard 由来)
 
 `src/doc/` は [Wordgard](https://wordgard.net/) (MIT) の doc パッケージから派生している
-(著作権表示は LICENSE の "Third-party code")。ProseMirror の
-`Node` / `Fragment` / `NodeSpec` ではなく、次の語彙を使う。
+(著作権表示は LICENSE の "Third-party code")。語彙もそのまま引き継いでいる。
 
 | Wordgard の語彙 | 中身 |
 | --- | --- |
@@ -649,9 +648,9 @@ core が React に依存しないので「依存ゼロ」が保てる。アダ�
 | `Node.Query` | 中身やマークの適用先の指定。型そのもの・`Node.Group`・配列 (和)・`{and: [...]}` (積) |
 | `Schema.define([...])` | タグ・型・マークを 1 つの配列に混ぜて渡す。ドキュメント型はちょうど 1 つ |
 
-ProseMirror との一番の違いは 2 つ。
+この語彙で効いているのは 2 つ。
 
-**1. コンテンツ式ではなくクエリ。** `"paragraph block*"` のような文字列は無く、
+**1. 中身の指定がクエリ。** `"paragraph block*"` のようなコンテンツ式の文字列は無く、
 グループの集合演算で書く。順序や個数の制約は表現できない代わりに、パーサが要らず、
 型で組み立てられる。
 
@@ -664,7 +663,7 @@ export const Paragraph = Plot.define("Paragraph", {
 });
 ```
 
-**2. Shape が描画と (将来の) パースの両方を持つ。** `toDOM` / `parseDOM` に分かれていない。
+**2. Shape が描画と (将来の) パースの両方を持つ。** 向きごとに指定を分けない。
 マークを要素ではなく属性で描けるので、傍点 (`text-emphasis`) や縦中横のような
 「要素を増やしたくない装飾」を素直に書ける。
 
@@ -810,9 +809,8 @@ view は `dispatch(spec)` でも `dispatch(tr)` でも受ける。
 
 ### 次に入力される文字のマーク
 
-ProseMirror の `storedMarks` に当たるものは、状態ではなく**選択が持つ**
-(`selection.activeMarks`)。Wordgard の `activeMarks` と同じ置き場所で、
-選択を動かせば自然に消える。
+これは状態ではなく**選択が持つ** (`selection.activeMarks`)。
+Wordgard の `activeMarks` と同じ置き場所で、選択を動かせば自然に消える。
 
 ### 修復 (fitChange)
 

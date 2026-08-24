@@ -6,7 +6,7 @@ export abstract class Selection {
   protected constructor(
     readonly $anchor: Pos,
     readonly $head: Pos,
-    /** 次に入力される文字に付くマーク。storedMarks 相当だが、状態ではなく選択が持つ */
+    /** 次に入力される文字に付くマーク。状態ではなく選択が持つので、動かせば消える */
     readonly activeMarks: Mark.Set | null = null,
   ) {}
 
