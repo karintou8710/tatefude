@@ -247,3 +247,37 @@ CDP 経由で合成したキーは `keyCode: 0` / `code: ""` になることが�
 つまり `event.key` さえ正しければ keydown 経路は `keyCode: 0` でも動く。
 入力の入口を keymap に寄せたのはこれも理由の 1 つで、今はブラウザテストから
 `Backspace` / `Delete` も普通のキーとして送れる。
+
+### 7. 縦書きでも IME の候補ウィンドウが横書きになる **(重要)**
+
+`writing-mode: vertical-rl` の要素に EditContext を付けると、
+未確定入力の候補ウィンドウが横書きで出る。`contenteditable` なら縦で出る。
+
+`core/exported/web_input_method_controller_impl.cc:187`
+
+```cpp
+WebTextInputInfo WebInputMethodControllerImpl::TextInputInfo() {
+  if (IsEditContextActive())
+    return GetInputMethodController().GetActiveEditContext()->TextInputInfo();
+
+  return GetFrame()->GetInputMethodController().TextInputInfo();
+}
+```
+
+縦フラグを立てているのは非 EditContext 側だけ (`input_method_controller.cc:1769`)。
+
+```cpp
+if (style && !style->IsHorizontalWritingMode()) {
+  info.flags |= kWebTextInputFlagVertical;
+}
+```
+
+EditContext 側 (`edit_context.cc:862`) は `info.flags` に
+`GetInputMethodController().TextInputFlags()` を入れるだけで、
+これは autocomplete / autocorrect / autocapitalize / spellcheck しか見ない。
+つまり EditContext 経路では `kWebTextInputFlagVertical` が常に落ちる。
+
+`updateCharacterBounds` で渡す矩形は縦に積まれている (x 固定、y 増加) ので座標は正しく、
+向きを伝える API が Web 側に無い。**回避策なし**。
+
+再現用の最小 HTML は `docs/repro/`。
