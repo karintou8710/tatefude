@@ -129,6 +129,16 @@ export class Pos {
     return null;
   }
 
+  /**
+   * この位置を含む一番内側のテキストブロックの、開きトークンの位置。
+   * 2 つの位置が同じブロックに居るかは、この値を比べれば分かる。
+   */
+  textblockStart(): number | null {
+    const depth = this.textblockDepth();
+    // doc 自身がテキストブロックになることはないので、depth 0 は「どこにも入っていない」
+    return depth == null || depth === 0 ? null : this.before(depth);
+  }
+
   toString(): string {
     return `Pos(${this.pos}, depth=${this.depth}, parent=${this.parent.name})`;
   }

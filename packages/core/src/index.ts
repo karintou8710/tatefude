@@ -107,6 +107,12 @@ export {
   undo,
   undoDepth,
 } from "./state/history";
+export {
+  atTextblockEnd,
+  atTextblockStart,
+  crossesTextblocks,
+  inTextblock,
+} from "./state/query";
 export { NodeSelection, Selection, TextSelection } from "./state/selection";
 export {
   type DocSource,

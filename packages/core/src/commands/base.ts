@@ -12,6 +12,7 @@ import {
   sliceDoc,
   type Token,
 } from "../doc";
+import { atTextblockEnd, atTextblockStart, inTextblock } from "../state/query";
 import { Selection, TextSelection } from "../state/selection";
 import type { EditorState } from "../state/state";
 import { marksAt, type TransactionSpec } from "../state/transaction";
@@ -68,7 +69,7 @@ export const splitBlock: Command = (state) => {
   const { from, to } = state.selection;
   const $to = state.selection.$to;
   const parent = state.selection.$from.parent;
-  if (!parent.isTextblock) return false;
+  if (!inTextblock(state)) return false;
   const insert: Token[] = [Close, splitTag(state, $to, parent)];
   return {
     changes: { from, to, insert, fit: true },
@@ -87,7 +88,7 @@ export const splitBlock: Command = (state) => {
 export const liftEmptyBlock: Command = (state) => {
   const $from = state.selection.$from;
   if (!state.selection.empty) return false;
-  if (!$from.parent.isTextblock || $from.parent.contentLength) return false;
+  if (!inTextblock(state) || $from.parent.contentLength) return false;
   // 深さ 1 の親は doc なので、出る先が無い
   const depth = $from.depth;
   if (depth < 2) return false;
@@ -173,11 +174,9 @@ function edgeTextblock(
  * **その中の最後のテキストブロックまで降りる**。それ以外の位置では false。
  */
 export const joinBackward: Command = (state) => {
-  const { from, empty } = state.selection;
-  if (!empty) return false;
+  if (!atTextblockStart(state)) return false;
   const $from = state.selection.$from;
   const depth = $from.depth;
-  if (!$from.parent.isTextblock || from !== $from.start(depth)) return false;
 
   // 手前に兄弟がいる深さまで登る
   let d = depth;
@@ -201,11 +200,9 @@ export const joinBackward: Command = (state) => {
 
 /** ブロック末尾の Delete。joinBackward の対称で、次のテキストブロックを引き上げる */
 export const joinForward: Command = (state) => {
-  const { from, empty } = state.selection;
-  if (!empty) return false;
-  const $from = state.selection.$from;
+  if (!atTextblockEnd(state)) return false;
+  const { from, $from } = state.selection;
   const depth = $from.depth;
-  if (!$from.parent.isTextblock || from !== $from.end(depth)) return false;
 
   let d = depth;
   while (d > 0 && $from.index(d - 1) >= $from.node(d - 1).childCount - 1) d--;

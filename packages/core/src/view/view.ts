@@ -147,11 +147,8 @@ export class EditorView {
   textblockAt(pos: number): TextblockView | null {
     const doc = this.state.doc;
     if (pos < 0 || pos > doc.contentLength) return null;
-    const $pos = Pos.resolve(doc, pos);
-    const depth = $pos.textblockDepth();
-    // doc 自身がテキストブロックになることはないので、depth 0 は「どこにも入っていない」
-    if (depth == null || depth === 0) return null;
-    return this.byFrom.get($pos.before(depth)) ?? null;
+    const start = Pos.resolve(doc, pos).textblockStart();
+    return start == null ? null : (this.byFrom.get(start) ?? null);
   }
 
   /** 文書順での番号。跨ぎ移動が「前後のテキストブロック」だけで書けるようにする */
