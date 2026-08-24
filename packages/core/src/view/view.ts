@@ -5,7 +5,7 @@ import { handleBeforeInput } from "../input/beforeinput";
 import { handleKeyDown } from "../input/keymap";
 import { PointerSelection } from "../input/pointer";
 import { handleWheel } from "../input/wheel";
-import { decorations, type InlineDecoration } from "../state/decoration";
+import { decorations } from "../state/decoration";
 import type { Selection } from "../state/selection";
 import type { EditorState } from "../state/state";
 import { Transaction, type TransactionSpec } from "../state/transaction";
@@ -75,12 +75,6 @@ export class EditorView {
     this.render();
   }
 
-  get decorations(): readonly InlineDecoration[] {
-    const result: InlineDecoration[] = [];
-    for (const set of this.state.facet(decorations)) result.push(...set.decorations);
-    return result;
-  }
-
   /** 更新の指定でも、組み立て済みのトランザクションでも受ける */
   dispatch = (input: TransactionSpec | Transaction): void => {
     if (this.destroyed) return;
@@ -134,7 +128,7 @@ export class EditorView {
   private render(): void {
     const textblocks: TextblockView[] = [];
     syncBlockChildren(this.dom, this.state.doc, 0, this.children, {
-      decorations: this.decorations,
+      decorations: this.state.facet(decorations),
       textblocks,
       createEditContext: (block) => this.ime.createFor(block),
     });

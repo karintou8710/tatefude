@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { Leaf, type Node, Schema } from "../../doc";
 import { Blockquote, basicSchemaElements, Paragraph } from "../../extensions";
+import { DecorationSet } from "../../state/decoration";
 import type { BlockViewContext } from "../block-view";
 import { ContainerView, syncBlockChildren, TextblockView } from "../block-view";
 
@@ -20,7 +21,7 @@ beforeEach(() => {
   views = [];
   created = 0;
   ctx = {
-    decorations: [],
+    decorations: DecorationSet.empty,
     textblocks: [],
     createEditContext: () => {
       created++;

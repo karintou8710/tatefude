@@ -1,6 +1,6 @@
 import { buildTextblockMap, type Plot, type TextblockMap } from "../doc";
 import type { BlockEditContext } from "../ime/block-context";
-import type { InlineDecoration } from "../state/decoration";
+import { type DecorationSet, type InlineDecoration, signatureOf } from "../state/decoration";
 import { createContainerDOM, createTextblockDOM, renderBlockContent } from "./render";
 
 /**
@@ -10,7 +10,7 @@ import { createContainerDOM, createTextblockDOM, renderBlockContent } from "./re
  * ネストの知識が view 層の外まで漏れる。
  */
 export interface BlockViewContext {
-  readonly decorations: readonly InlineDecoration[];
+  readonly decorations: DecorationSet;
   readonly textblocks: TextblockView[];
   /** EditContext を張る。IME が使えない環境では null */
   createEditContext(block: TextblockView): BlockEditContext | null;
@@ -71,7 +71,7 @@ export class TextblockView extends BlockNodeView {
     this.contentDOM = rendered.contentDOM;
     this.text = buildTextblockMap(node, from);
     const decorations = decorationsFor(ctx.decorations, node, from);
-    this.decoKey = decoKeyOf(decorations);
+    this.decoKey = signatureOf(decorations);
     renderBlockContent(this.contentDOM, node, from, decorations);
     this.ec = ctx.createEditContext(this);
   }
@@ -79,7 +79,7 @@ export class TextblockView extends BlockNodeView {
   /** 再描画が起きたら true */
   update(node: Plot, from: number, ctx: BlockViewContext): boolean {
     const decorations = decorationsFor(ctx.decorations, node, from);
-    const decoKey = decoKeyOf(decorations);
+    const decoKey = signatureOf(decorations);
     const needsRender = this.node !== node || this.decoKey !== decoKey;
     const moved = this.from !== from;
     if (!needsRender && !moved) return false;
@@ -168,16 +168,8 @@ export function syncBlockChildren(
   while (views.length > index) views.pop()?.destroy();
 }
 
-function decorationsFor(
-  decorations: readonly InlineDecoration[],
-  node: Plot,
-  from: number,
-): InlineDecoration[] {
+/** そのブロックの中身と重なるものだけ */
+function decorationsFor(set: DecorationSet, node: Plot, from: number): InlineDecoration[] {
   const contentFrom = from + 1;
-  const contentTo = contentFrom + node.contentLength;
-  return decorations.filter((d) => d.from < contentTo && d.to > contentFrom);
-}
-
-function decoKeyOf(decorations: readonly InlineDecoration[]): string {
-  return decorations.map((d) => `${d.from}-${d.to}:${d.class ?? ""}:${d.style ?? ""}`).join("|");
+  return set.find(contentFrom, contentFrom + node.contentLength);
 }
