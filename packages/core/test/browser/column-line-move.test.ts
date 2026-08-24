@@ -61,7 +61,8 @@ function bandOf(rect: DOMRect): number {
 }
 
 describe("段組みを跨ぐ行移動", () => {
-  const long = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろ";
+  const long =
+    "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろ";
 
   it("ブロックが段に割れている", () => {
     view = mount(long.repeat(3));

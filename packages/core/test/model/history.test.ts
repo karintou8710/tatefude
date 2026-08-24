@@ -9,7 +9,7 @@ import {
   redoDepth,
   undo,
   undoDepth,
-} from "../../src/state/history";
+} from "../../src/extensions/functionality/undo-redo";
 import { TextSelection } from "../../src/state/selection";
 import { EditorState } from "../../src/state/state";
 import { p } from "./doc";

@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Leaf, type Plot } from "../../src/doc";
 import { Blockquote, basicSchema, Paragraph, Ruby, RubyBase, RubyText } from "../../src/extensions";
+import { history } from "../../src/extensions/functionality/undo-redo";
 import { isEditContextSupported } from "../../src/ime/edit-context-api";
 import { posAtCoords, wordRangeAt } from "../../src/input/pointer";
 import type { Extension } from "../../src/state/facet";
-import { history } from "../../src/state/history";
 import { TextSelection } from "../../src/state/selection";
 import { EditorState } from "../../src/state/state";
 import { caretPointFromCoords, caretRectAt } from "../../src/view/coords";
@@ -62,13 +62,6 @@ function fireTextFormatUpdate(index: number, rangeStart: number, rangeEnd: numbe
     ],
   });
   view.ime.all[index].ec.dispatchEvent(event);
-}
-
-function fireBeforeInput(inputType: string): void {
-  const target = document.activeElement ?? view.dom;
-  target.dispatchEvent(
-    new InputEvent("beforeinput", { inputType, bubbles: true, cancelable: true }),
-  );
 }
 
 /** IME が処理したキーに付く keyCode。ime/manager.ts の非公開の定数と同じ値 */
@@ -205,7 +198,7 @@ describe("EditContext との接続", () => {
   it("ブロック先頭の Backspace が結合になる", () => {
     view = mount("ab", "cd");
     setCaret(5); // 2 つ目のブロックの先頭
-    fireBeforeInput("deleteContentBackward");
+    pressKey("Backspace");
     expect(blockTexts()).toEqual(["abcd"]);
     expect(view.state.selection.head).toBe(3);
     expect(view.ime.all.length).toBe(1);
@@ -215,14 +208,14 @@ describe("EditContext との接続", () => {
   it("ブロックの途中の Backspace は EditContext に任せる (doc は変わらない)", () => {
     view = mount("ab", "cd");
     setCaret(6);
-    fireBeforeInput("deleteContentBackward");
+    pressKey("Backspace");
     expect(blockTexts()).toEqual(["ab", "cd"]);
   });
 
   it("ブロックを跨ぐ選択の削除は自前で処理する", () => {
     view = mount("abc", "def");
     view.dispatch({ selection: TextSelection.create(view.state.doc, 3, 7) });
-    fireBeforeInput("deleteContentBackward");
+    pressKey("Backspace");
     expect(blockTexts()).toEqual(["abef"]);
   });
 
@@ -272,7 +265,7 @@ describe("EditContext との接続", () => {
     view = mount("abc", "de");
     setCaret(2);
     pressMod("a");
-    fireBeforeInput("deleteContentBackward");
+    pressKey("Backspace");
     expect(view.state.doc.toString()).toBe("Doc(Paragraph())");
   });
 
@@ -667,7 +660,7 @@ describe("ネストしたブロック", () => {
   it("引用の中のブロック先頭の Backspace が結合になる", () => {
     view = mountNested();
     setCaret(8); // "c" の先頭
-    fireBeforeInput("deleteContentBackward");
+    pressKey("Backspace");
     expect(view.state.doc.toString()).toBe('Doc(Paragraph("a"), Blockquote(Paragraph("bc")))');
     expect(view.textblocks.length).toBe(2);
     expect(view.ime.all[1].ec.text).toBe("bc");
@@ -676,7 +669,7 @@ describe("ネストしたブロック", () => {
   it("引用の先頭の Backspace が引用の手前の段落と結合する", () => {
     view = mountNested();
     setCaret(5); // "b" の先頭
-    fireBeforeInput("deleteContentBackward");
+    pressKey("Backspace");
     expect(view.state.doc.toString()).toBe('Doc(Paragraph("ab"), Blockquote(Paragraph("c")))');
     // 結合した先にキャレットが来て、EditContext もそこに張り替わる
     expect(view.state.selection.head).toBe(2);
@@ -686,7 +679,7 @@ describe("ネストしたブロック", () => {
   it("引用の後ろの段落の Backspace は引用の中の最後の段落と結合する", () => {
     view = mountNodes(Blockquote.create([paragraph("a"), paragraph("b")]), paragraph("c"));
     setCaret(9); // "c" の先頭
-    fireBeforeInput("deleteContentBackward");
+    pressKey("Backspace");
     expect(view.state.doc.toString()).toBe('Doc(Blockquote(Paragraph("a"), Paragraph("bc")))');
   });
 
@@ -710,7 +703,7 @@ describe("ネストしたブロック", () => {
   it("引用の外から中への跨ぎ削除が、木として成立する形に落ちる", () => {
     view = mountNested();
     setSelection(2, 6); // "a" の末尾 → 引用の中の "b" の末尾
-    fireBeforeInput("deleteContentBackward");
+    pressKey("Backspace");
     expect(view.state.doc.toString()).toBe(
       'Doc(Paragraph("a"), Blockquote(Paragraph(), Paragraph("c")))',
     );
@@ -719,7 +712,7 @@ describe("ネストしたブロック", () => {
   it("引用の中から外への跨ぎ削除も成立する", () => {
     view = mountNodes(Blockquote.create([paragraph("a"), paragraph("b")]), paragraph("c"));
     setSelection(5, 11); // 引用の中の "b" の先頭 → "c" の末尾
-    fireBeforeInput("deleteContentBackward");
+    pressKey("Backspace");
     expect(view.state.doc.toString()).toBe('Doc(Blockquote(Paragraph("a"), Paragraph()))');
   });
 
@@ -741,7 +734,7 @@ describe("ネストしたブロック", () => {
     view = mountNested();
     setCaret(5);
     pressMod("a");
-    fireBeforeInput("deleteContentBackward");
+    pressKey("Backspace");
     // 木としては成立している。空のコンテナを畳むのは fit / correction 側の仕事
     expect(view.state.doc.toString()).toBe("Doc(Paragraph(), Blockquote(Paragraph()))");
   });
@@ -1006,16 +999,6 @@ describe("undo / redo のキー", () => {
     expect(view.state.selection.head).toBe(4);
 
     expect(pressMod("z", { shiftKey: true })).toBe(true);
-    expect(blockTexts()).toEqual(["abc", ""]);
-  });
-
-  it("メニューからの取り消し (historyUndo) も効く", () => {
-    view = mountWith([basicSchema(), history()], paragraph("abc"));
-    setCaret(4);
-    pressKey("Enter");
-    fireBeforeInput("historyUndo");
-    expect(blockTexts()).toEqual(["abc"]);
-    fireBeforeInput("historyRedo");
     expect(blockTexts()).toEqual(["abc", ""]);
   });
 

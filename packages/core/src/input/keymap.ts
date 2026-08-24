@@ -1,18 +1,22 @@
 import {
   type Command,
   chainCommands,
+  deleteAcrossBlocks,
+  joinBackward,
+  joinForward,
   liftEmptyBlock,
   selectAll,
   splitBlock,
-  toggleMark,
 } from "../commands/base";
 import { Facet } from "../state/facet";
-import { redo, undo } from "../state/history";
 import type { EditorView } from "../view/view";
 import { handleArrow } from "./arrow";
 
 export interface KeyBinding {
-  /** `"Mod-b"` `"Mod-Shift-z"` `"Tab"` `"Enter"`。Mod は mac なら Meta、他は Ctrl */
+  /**
+   * `"Mod-b"` `"Mod-Shift-z"` `"Tab"` `"Enter"`。
+   * `Mod` は mac なら Meta、他は Ctrl。`Ctrl` はどの OS でも物理の Ctrl (mac の Ctrl-H など)。
+   */
   key: string;
   run: Command;
 }
@@ -27,36 +31,49 @@ const isMac = typeof navigator !== "undefined" && /Mac|iP(hone|ad|od)/.test(navi
 
 /** 構成に何も足さなくても効く割り当て。history が無い構成では undo が false を返すだけ */
 const baseKeymap: readonly KeyBinding[] = [
-  // Mark.define に渡した型名。要素名ではない
-  { key: "Mod-b", run: toggleMark("Strong") },
-  // 日本語組版の強調は傍点。イタリックは使わないので i の枠をこちらに充てる
-  { key: "Mod-i", run: toggleMark("Bouten") },
   // ブラウザに任せるとフォーカス中のブロックだけになるので取り上げる
   { key: "Mod-a", run: selectAll },
-  { key: "Mod-z", run: undo },
-  // Mod-Shift-Z は mac、Mod-Y は Windows の流儀
-  { key: "Mod-Shift-z", run: redo },
-  { key: "Mod-y", run: redo },
-  // 空のブロックなら親から出る。出られなければいつも通り割る。
-  // Shift-Enter は hard break の意図なので、ここでは拾わず beforeinput へ流す
+  // 空のブロックなら親から出る。出られなければいつも通り割る
   { key: "Enter", run: chainCommands(liftEmptyBlock, splitBlock) },
+  // 削除は**ブロックの境界だけ**引き受ける。当てはまらなければ false を返して落ちるので、
+  // preventDefault されず、ブロックの中の削除はこれまで通り EditContext が処理する。
+  // 語や行の単位で消すキーも、境界に立っていれば結合になるのは同じなので同じコマンドでよい
+  ...deleteBindings("Backspace", chainCommands(deleteAcrossBlocks, joinBackward)),
+  ...deleteBindings("Delete", chainCommands(deleteAcrossBlocks, joinForward)),
 ];
+
+/**
+ * 削除 1 つぶんの割り当て。OS ごとに単位を変えるキーがあるので、素のキーと修飾つきを並べる。
+ * mac の Ctrl-H / Ctrl-D は他の OS では削除ではないので、mac のときだけ足す。
+ */
+function deleteBindings(key: string, run: Command): KeyBinding[] {
+  const emacs = key === "Backspace" ? "Ctrl-h" : "Ctrl-d";
+  return [
+    { key, run },
+    { key: `Mod-${key}`, run },
+    { key: `Alt-${key}`, run },
+    ...(isMac ? [{ key: emacs, run }] : []),
+  ];
+}
 
 function matches(binding: string, event: KeyboardEvent): boolean {
   const parts = binding.split("-");
   const key = parts.pop() ?? "";
   let mod = false;
+  let ctrl = false;
   let shift = false;
   let alt = false;
   for (const part of parts) {
     if (part === "Mod") mod = true;
+    else if (part === "Ctrl") ctrl = true;
     else if (part === "Shift") shift = true;
     else if (part === "Alt") alt = true;
     else return false;
   }
-  // mac の Ctrl / それ以外の Meta は Mod ではない。押されていたら横取りしない
-  if (isMac ? event.ctrlKey : event.metaKey) return false;
-  if (mod !== (isMac ? event.metaKey : event.ctrlKey)) return false;
+  // Mod は mac なら Meta、他は Ctrl。Ctrl はどの OS でも物理の Ctrl。
+  // 書いていない修飾が押されていたら横取りしない
+  if (event.metaKey !== (isMac && mod)) return false;
+  if (event.ctrlKey !== (isMac ? ctrl : mod || ctrl)) return false;
   if (shift !== event.shiftKey) return false;
   if (alt !== event.altKey) return false;
   return event.key.toLowerCase() === key.toLowerCase();

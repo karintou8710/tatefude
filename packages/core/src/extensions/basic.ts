@@ -1,11 +1,10 @@
 import type { Schema } from "../doc";
 import type { Extension } from "../state/facet";
-import { schemaElement } from "../state/state";
-import { Bouten } from "./mark/bouten";
-import { Strong } from "./mark/strong";
-import { Blockquote } from "./node/blockquote";
-import { Doc } from "./node/doc";
-import { Paragraph } from "./node/paragraph";
+import { Bouten, boutenExtension } from "./mark/bouten";
+import { Strong, strongExtension } from "./mark/strong";
+import { Blockquote, blockquoteExtension } from "./node/blockquote";
+import { Doc, docExtension } from "./node/doc";
+import { Paragraph, paragraphExtension } from "./node/paragraph";
 import { Ruby, RubyBase, RubyText, rubyExtension } from "./node/ruby";
 
 /**
@@ -29,8 +28,13 @@ export const basicSchemaElements: readonly Schema.Element[] = [
  * 縦中横は横書きでは意味が無いので入れない。縦書きの構成が `tcyExtension` を足す。
  */
 export function basicSchema(): Extension {
+  // **要素ではなく拡張を並べる。** 型のほかにキー割り当てや不変条件を連れているものがある
   return [
-    [Doc, Paragraph, Blockquote, Strong, Bouten].map((element) => schemaElement.of(element)),
+    docExtension,
+    paragraphExtension,
+    blockquoteExtension,
     rubyExtension,
+    strongExtension,
+    boutenExtension,
   ];
 }

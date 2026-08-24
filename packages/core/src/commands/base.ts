@@ -12,7 +12,7 @@ import {
   sliceDoc,
   type Token,
 } from "../doc";
-import { atTextblockEnd, atTextblockStart, inTextblock } from "../state/query";
+import { atTextblockEnd, atTextblockStart, crossesTextblocks, inTextblock } from "../state/query";
 import { Selection, TextSelection } from "../state/selection";
 import type { EditorState } from "../state/state";
 import { marksAt, type TransactionSpec } from "../state/transaction";
@@ -29,6 +29,13 @@ export const deleteSelection: Command = (state) => {
     userEvent: "delete.selection",
   };
 };
+
+/**
+ * ブロックを跨ぐ選択だけ自前で消す。跨がない削除は EditContext のバッファの中で閉じるので、
+ * false を返して任せる。
+ */
+export const deleteAcrossBlocks: Command = (state) =>
+  crossesTextblocks(state) ? deleteSelection(state) : false;
 
 /**
  * doc の端から端まで選ぶ。ブラウザの SelectAll は編集ホスト = 1 ブロックの中で閉じてしまうので、

@@ -45,7 +45,7 @@ p.editContext = ec;
 | 操作 | 届き方 | ライブラリ側の責務 |
 | --- | --- | --- |
 | 文字入力・IME 変換 | `beforeinput` → EditContext がバッファを書き換え → `textupdate` | textupdate をトランザクションに変換 |
-| Backspace / Delete / 単語削除 | `beforeinput` → `EditContext::DeleteBackward()` 等 → `textupdate` | 同上。**keymap で二重処理しないこと** |
+| Backspace / Delete / 単語削除 | `beforeinput` → `EditContext::DeleteBackward()` 等 → `textupdate` | 同上。**keymap で握り潰すのは境界のときだけ** (§3) |
 | Enter / Tab / Ctrl+B,I,U | `beforeinput` は飛ぶが **EditContext は何もしない** | 自前でコマンドを実行し、doc を更新して EC に push。実際は `keydown` の側で捕まえる (§3) |
 | 矢印キー・クリック等の移動 | `beforeinput` + ネイティブの DOM selection 移動 | `selectionchange` から model selection を復元 |
 
@@ -242,46 +242,45 @@ DOM だけでは区別が付かないので、3 か所で支えている。
 | --- | --- |
 | ブロック内の文字入力・IME 変換 | EditContext → `textupdate` → トランザクション |
 | ブロック内の Backspace / Delete / 単語削除 | 同上 (境界計算は EditContext 任せ) |
-| **ブロック先頭での Backspace** | EditContext は無反応。`beforeinput` の `deleteContentBackward` を検知し、直前ブロックとの結合コマンドを実行 |
-| **ブロック末尾での Delete** | 同様に `deleteContentForward` → 次ブロックとの結合 |
-| **選択がブロックを跨ぐ状態での削除・入力** | `beforeinput` で乗っ取り、自前で範囲削除してから挿入 |
+| **ブロック先頭での Backspace** | EditContext は無反応。`keydown` で境界を判定し、直前ブロックとの結合コマンドを実行 |
+| **ブロック末尾での Delete** | 同様に次ブロックとの結合 |
+| **選択がブロックを跨ぐ状態での削除・入力** | `keydown` で乗っ取り、自前で範囲削除してから挿入 |
 | Enter | `keydown` でブロック分割 → 新ブロックの EC を作り `focus()` |
-| Mod-b / Mod-i | `keydown` |
-| undo / redo | `keydown` (Mod-z / Mod-Shift-z / Mod-y)。キーを伴わないメニューからの取り消しは `beforeinput` の `historyUndo` / `historyRedo` |
+| Mod-b / Mod-i | `keydown` (割り当ては Strong / Bouten の拡張が連れてくる) |
+| undo / redo | `keydown` (Mod-z / Mod-Shift-z / Mod-y)。割り当ては `history()` が連れてくる |
 | クリック・ドラッグによるキャレット移動 | ネイティブ。`selectionchange` で model に取り込む |
 | **矢印キーによる移動 (修飾なし)** | `keydown` で全部自前 (`input/arrow.ts`)。物理キーを論理方向に直し、inline 軸は grapheme 単位、block 軸は行の矩形から引く。ブロックの端まで来たら隣接ブロックへ `focus()` + キャレット設定 |
 | Mod / Alt + 矢印 (単語単位・行頭行末・ページ) | まだネイティブ。縦書きでは軸がずれる (M1) |
 | **ブロックを跨ぐドラッグ選択** | `mousedown` + `mousemove` を自前で追う (`input/pointer.ts`)。跨いだ瞬間だけ主導権を取り、DOM の選択との同期を止める |
 | **選択の描画** | ネイティブの選択描画は透明にして、model の選択を CSS Custom Highlight API で塗る (`view/selection-highlight.ts`) |
 
-### keydown と beforeinput の分担
+### 入力の入口は keydown だけ
 
-`keydown` (`input/keymap.ts`) が主、`beforeinput` (`input/beforeinput.ts`) が受け皿。
+`beforeinput` は受け皿にできない。**EditContext を張った要素にブラウザは
+`beforeinput` を送ってこない** (`view/view.ts` の `onBeforeInput` は
+`handleBeforeInput` facet を回すだけで、既定では何もしない。拡張のための口)。
+編集の意図は全部 `keydown` (`input/keymap.ts`) で受ける。
 
-| | 見るもの |
-| --- | --- |
-| `keymap.ts` | ブロックを跨ぐ移動、Mod-b / Mod-i、Enter。捕まえたら preventDefault |
-| `beforeinput.ts` | keymap が取りこぼした編集の意図。特に**境界の削除**は必ずここで見る。ほかにプラットフォーム固有のキー割り当てと、将来の貼り付け・切り取り |
+問題は、keydown を preventDefault すると EditContext も止まることだった。
+Backspace / Delete を素朴に握り潰すと、ブロックの内側の削除まで EditContext から
+奪ってしまい、grapheme・単語境界の計算を自前で持つことになる (§0)。
 
-keydown を preventDefault すると beforeinput も EditContext も止まる。握り潰す力が
-一番強い場所なので、keymap に入れるキーは絞る。特に **Backspace / Delete は
-keymap で見ない** — 止めるとブロックの内側の削除まで EditContext から奪ってしまい、
-grapheme・単語境界の計算を自前で持つことになる (§2 の「keymap で二重処理しないこと」)。
-境界かどうかは `beforeinput` の側で判定して、そこだけ乗っ取る。
+**解き方はコマンドの戻り値。** `Command` が `false` を返したら `preventDefault` せずに
+落とす。境界の削除は当てはまるときだけ true になるので、
 
-**同じ意図を両方に書かない。** keymap に割り当てがあるものを beforeinput にも置くと、
-入口が 2 つできて「どちらを通ったか」で挙動が変わる余地が残る。beforeinput に残すのは、
-キーの割り当てが OS ごとに違って keymap には書き切れないものだけ。
+- ブロック先頭の Backspace / 末尾の Delete → コマンドが結合して true
+- 選択がブロックを跨ぐ → `deleteAcrossBlocks` が自前で消して true
+- それ以外 (ブロックの内側) → false。EditContext がこれまで通り処理する
 
-| inputType | keymap に書けない理由 |
-| --- | --- |
-| `deleteContentBackward` / `deleteWordBackward` ほか | Backspace のほかに macOS の Ctrl-H / Alt-Backspace などから飛ぶ。そもそも keymap では見ないと決めた入力 |
-| `deleteContentForward` / `deleteWordForward` | 同上 (macOS の Ctrl-D) |
-| `insertLineBreak` | Shift-Enter を keymap から意図的に流している先。macOS の Ctrl-O も来る |
-| `historyUndo` / `historyRedo` | メニューや右クリックからの取り消し。そもそもキーを伴わない |
+語や行の単位で消すキー (`Mod-Backspace` / `Alt-Delete`、macOS の `Ctrl-H` / `Ctrl-D`) も、
+境界に立っていれば結合になるのは同じなので同じコマンドを並べてある。OS ごとに割り当てが
+違うぶんは、キーを並べて吸収する。そのために `matches` は `Mod` (mac なら Meta、他は Ctrl)
+と `Ctrl` (どの OS でも物理の Ctrl) を区別する。
 
-キーではなく意図で受けているので、OS ごとの割り当てを書き並べなくて済む。これが
-beforeinput を残す理由で、keymap と同じことを二度書く理由ではない。
+**キー割り当てはそれを使う拡張が連れてくる。** `Mod-b` は `strongExtension`、`Mod-i` は
+`boutenExtension`、`Mod-z` などは `history()`。core の baseKeymap に置くと core が拡張を
+名指しすることになるので、構成に足していないものは効かない、で揃えている。baseKeymap に
+残るのは、どの構成でも意味がある `Mod-a` / `Enter` / 削除だけ。
 
 「ブロックの端にいるか」の判定は、行頭・行末 (ArrowUp/Down における視覚行) を含むので
 `coords.ts` の矩形計算に依存する。ここは実装が濁りやすいので、判定を
@@ -469,8 +468,7 @@ tatefude/
 │   │   ├── manager.ts          ブロックと EditContext の対応付け + イベント処理
 │   │   └── bounds.ts           control / selection / character の矩形計算
 │   ├── input/
-│   │   ├── keymap.ts       keydown → コマンド (主。跨ぎ移動 / Mod-b,i / Enter)
-│   │   ├── beforeinput.ts  受け皿。境界削除 / プラットフォーム固有キー / 将来の貼り付け
+│   │   ├── keymap.ts       keydown → コマンド (入力の唯一の入口)
 │   │   ├── arrow.ts        矢印キーの移動 (論理方向への変換 + grapheme / 行の移動)
 │   │   ├── boundary.ts     隣のブロックに入るときの着地位置
 │   │   └── pointer.ts      ドラッグ選択 (ブロックを跨いだときだけ主導権を取る)

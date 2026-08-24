@@ -4,11 +4,12 @@
 // 変更を**逆向きの ChangeSet** として枝に積み、undo はそれをそのまま適用する。
 // ステップの列を巻き戻すのではないので、履歴が持つのは「変更 1 個と、その前の選択」だけ。
 
-import type { ChangeSet } from "../doc";
-import { type Extension, Facet, Field } from "./facet";
-import { TextSelection } from "./selection";
-import type { EditorState } from "./state";
-import { Annotation, Transaction, type TransactionSpec } from "./transaction";
+import type { ChangeSet } from "../../doc";
+import { keymap } from "../../input/keymap";
+import { type Extension, Facet, Field } from "../../state/facet";
+import { TextSelection } from "../../state/selection";
+import type { EditorState } from "../../state/state";
+import { Annotation, Transaction, type TransactionSpec } from "../../state/transaction";
 
 type Side = "done" | "undone";
 
@@ -152,8 +153,21 @@ const historyField = Field.define<HistoryState>({
 });
 
 /** 構成に足すと undo / redo が使えるようになる */
+/**
+ * **キー割り当ても連れて行く。** 取り消しは既定の構成に含まれるとは限らないので、
+ * baseKeymap に置くと core が拡張を名指しすることになる。
+ */
 export function history(config: HistoryConfig = {}): Extension {
-  return [historyField, historyConfig.of(config)];
+  return [
+    historyField,
+    historyConfig.of(config),
+    keymap.of([
+      { key: "Mod-z", run: undo },
+      // Mod-Shift-Z は mac、Mod-Y は Windows の流儀
+      { key: "Mod-Shift-z", run: redo },
+      { key: "Mod-y", run: redo },
+    ]),
+  ];
 }
 
 /** `state.field` は構成に無いと投げるので、history を足していない構成では null を返す */

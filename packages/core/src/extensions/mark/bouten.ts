@@ -1,4 +1,6 @@
+import { toggleMark } from "../../commands/base";
 import { Mark } from "../../doc";
+import { keymap } from "../../input/keymap";
 import type { Extension } from "../../state/facet";
 import { schemaElement } from "../../state/state";
 
@@ -14,4 +16,8 @@ export const Bouten = Mark.define("Bouten", {
   shape: { attribute: "style/text-emphasis", value: "filled sesame" },
 });
 
-export const boutenExtension: Extension = schemaElement.of(Bouten);
+/** 日本語組版の強調はこれなので、イタリックの枠 (Mod-i) を充てる */
+export const boutenExtension: Extension = [
+  schemaElement.of(Bouten),
+  keymap.of([{ key: "Mod-i", run: toggleMark(Bouten.name) }]),
+];

@@ -234,9 +234,8 @@ KeyboardEvent::is_composing_                   events/keyboard_event.cc:71, 121
 
 CDP 経由で合成したキーは `keyCode: 0` / `code: ""` になることがあり、
 その場合 Blink が編集コマンドに落とさないので beforeinput が飛ばない。
-`event.key` だけ見る自前のハンドラ (矢印キーの境界移動、Enter、Mod-b/i) は動くのに、
-beforeinput でしか拾っていないもの (Backspace / Delete の境界結合) は無反応、
-という食い違いが起きる。
+`event.key` だけ見る自前のハンドラは動くのに、beforeinput でしか拾っていないものは
+無反応、という食い違いが起きる。
 
 実際にデモで試したときのログ:
 
@@ -246,5 +245,5 @@ beforeinput でしか拾っていないもの (Backspace / Delete の境界結�
 | `key` に "Enter" | `key: "Enter"` / `keyCode: 0` | keymap が拾って分割される |
 
 つまり `event.key` さえ正しければ keydown 経路は `keyCode: 0` でも動く。
-ブラウザテストで Backspace / Delete を試すときは、beforeinput を直接
-dispatch するか、CDP に正しい `windowsVirtualKeyCode` を渡すこと。
+入力の入口を keymap に寄せたのはこれも理由の 1 つで、今はブラウザテストから
+`Backspace` / `Delete` も普通のキーとして送れる。

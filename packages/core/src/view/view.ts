@@ -1,7 +1,6 @@
 import type { Command } from "../commands/base";
 import { Pos } from "../doc";
 import { EditContextManager } from "../ime/manager";
-import { handleBeforeInput } from "../input/beforeinput";
 import { handleKeyDown } from "../input/keymap";
 import { PointerSelection } from "../input/pointer";
 import { handleWheel } from "../input/wheel";
@@ -205,6 +204,8 @@ export class EditorView {
     if (handleKeyDown(this, event)) event.preventDefault();
   };
 
+  // 既定では何もしない。EditContext を張った要素にブラウザは beforeinput を送ってこない
+  // (取り消しも削除も) ので、拡張のための口だけ開けてある
   private onBeforeInput = (event: InputEvent): void => {
     for (const handler of this.state.facet(handleBeforeInputFacet)) {
       if (handler(this, event)) {
@@ -212,7 +213,6 @@ export class EditorView {
         return;
       }
     }
-    if (handleBeforeInput(this, event)) event.preventDefault();
   };
 
   private onWheel = (event: WheelEvent): void => {

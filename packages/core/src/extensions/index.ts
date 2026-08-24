@@ -1,4 +1,15 @@
 export { basicSchema, basicSchemaElements } from "./basic";
+export {
+  type HistoryConfig,
+  history,
+  historyConfig,
+  historyTime,
+  isolateHistory,
+  redo,
+  redoDepth,
+  undo,
+  undoDepth,
+} from "./functionality/undo-redo";
 export { Bouten, boutenExtension } from "./mark/bouten";
 export { Strong, strongExtension } from "./mark/strong";
 export { Blockquote, blockquoteExtension } from "./node/blockquote";

@@ -65,6 +65,17 @@ export {
   wrapInRuby,
   wrapInTcy,
 } from "./extensions";
+export {
+  type HistoryConfig,
+  history,
+  historyConfig,
+  historyTime,
+  isolateHistory,
+  redo,
+  redoDepth,
+  undo,
+  undoDepth,
+} from "./extensions/functionality/undo-redo";
 export { BlockEditContext } from "./ime/block-context";
 export { isEditContextSupported } from "./ime/edit-context-api";
 export { EditContextManager } from "./ime/manager";
@@ -76,7 +87,6 @@ export {
   isArrowKey,
   moveByArrow,
 } from "./input/arrow";
-export { handleBeforeInput } from "./input/beforeinput";
 export { alongOf, crossToAdjacentBlock } from "./input/boundary";
 export { handleKeyDown, type KeyBinding, keymap } from "./input/keymap";
 export { PointerSelection, posAtCoords } from "./input/pointer";
@@ -96,17 +106,6 @@ export {
   Field,
   type FieldSpec,
 } from "./state/facet";
-export {
-  type HistoryConfig,
-  history,
-  historyConfig,
-  historyTime,
-  isolateHistory,
-  redo,
-  redoDepth,
-  undo,
-  undoDepth,
-} from "./state/history";
 export {
   atTextblockEnd,
   atTextblockStart,

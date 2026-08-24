@@ -29,13 +29,13 @@ This project contains code derived from Wordgard (https://wordgard.net/).
 Affected files:
 
   - src/doc/           (the entire directory)
-  - src/state/history.ts
+  - src/extensions/functionality/undo-redo.ts
   - src/extensions/node/paragraph.ts
   - src/extensions/node/blockquote.ts
 
-src/doc/change.ts and src/state/history.ts descend from Wordgard's
-implementations of ChangeSet and history, which themselves originate in
-CodeMirror 6 (https://codemirror.net/), by the same author.
+src/doc/change.ts and src/extensions/functionality/undo-redo.ts descend from
+Wordgard's implementations of ChangeSet and history, which themselves originate
+in CodeMirror 6 (https://codemirror.net/), by the same author.
 
 Wordgard is distributed under the following license:
 
