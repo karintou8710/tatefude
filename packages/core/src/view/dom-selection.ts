@@ -4,7 +4,7 @@ import type { EditorView } from "./view";
 
 /**
  * model の選択を DOM にも書く。キャレットも選択も描画は自前なので、こちらは
- * 支援技術とネイティブのコンテキストメニューのために保つ (docs/design.md)。
+ * 支援技術とネイティブのコンテキストメニューのために保つ。
  */
 export function writeDOMSelection(view: EditorView): void {
   const selection = view.state.selection;

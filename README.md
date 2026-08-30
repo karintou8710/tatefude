@@ -14,8 +14,6 @@ DOM がブラウザに書き換えられないので、view は `(doc, selection
 Chromium 121+ 専用。Safari / Firefox には EditContext の実装が無い。
 
 - デモ: <https://karintou8710.github.io/tatefude/>
-- 設計: [docs/design.md](docs/design.md)
-- EditContext の挙動メモ (Blink のソース + 実機で確かめたこと): [docs/editcontext.md](docs/editcontext.md)
 
 ## 使う
 

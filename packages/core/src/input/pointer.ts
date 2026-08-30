@@ -5,8 +5,8 @@ import { domPointToBlockPos } from "../view/dom-point";
 import type { EditorView } from "../view/view";
 
 /**
- * ポインタによる選択を全部持つ。ブラウザに任せると編集ホストの境界で選択が丸められ
- * (docs/editcontext.md #1)、ブロックを跨ぐドラッグが受け取れない。
+ * ポインタによる選択を全部持つ。ブラウザに任せると編集ホストの境界で選択が丸められ、
+ * ブロックを跨ぐドラッグが受け取れない。
  */
 export class PointerSelection {
   /** ドラッグの起点。伸ばす向きが変わっても動かさない */
