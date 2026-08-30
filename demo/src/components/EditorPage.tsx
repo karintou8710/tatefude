@@ -5,6 +5,7 @@ import { BubbleMenu, EditorContent, useEditor, useEditorState } from "tatefude-r
 import type { Editor } from "../editors";
 import { inlineItems } from "../editors/toolbar-items";
 import styles from "./EditorPage.module.css";
+import { MinitypeButton } from "./MinitypeButton";
 import { usePageCount, usePageScroll } from "./pagination";
 import { Toolbar } from "./Toolbar";
 
@@ -44,6 +45,9 @@ export function EditorPage({ editor: spec }: { editor: Editor }) {
       <div className={styles.column}>
         <div ref={toolbarRef} className={styles.toolbarBar}>
           <Toolbar editor={editor} items={spec.toolbar ?? []} />
+          {/* 実験用の書き出しは**ローカルだけ**。公開するビルドには入れない
+              (experiments/minitype のサーバーが要るし、あちらは再配布できない) */}
+          {spec.print && import.meta.env.DEV && <MinitypeButton doc={doc} print={spec.print} />}
         </div>
         {/* 選択したときだけ浮く。ブロックの型はキャレットだけで押せるので外す */}
         <BubbleMenu editor={editor} className={styles.bubble}>
@@ -52,13 +56,22 @@ export function EditorPage({ editor: spec }: { editor: Editor }) {
             items={(spec.toolbar ?? []).filter((item) => inlineItems.includes(item))}
           />
         </BubbleMenu>
-        <section className={paneClass(spec)}>
+        <section className={paneClass(spec)} style={gridVars(spec)}>
           <EditorContent editor={editor} className={styles.host} />
           <PageNumbers count={pages} />
         </section>
       </div>
     </main>
   );
+}
+
+/** 画面が紙と合わせるのは**字数と行数だけ**。級数・行送り・余白は組版側が使う */
+function gridVars(spec: Editor): React.CSSProperties | undefined {
+  if (!spec.print) return undefined;
+  return {
+    "--chars": spec.print.chars,
+    "--lines": spec.print.lines,
+  } as React.CSSProperties;
 }
 
 /**

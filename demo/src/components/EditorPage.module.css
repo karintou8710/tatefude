@@ -16,6 +16,9 @@
   position: sticky;
   top: 0;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-top: -16px;
   padding: 16px 0 8px;
   background: var(--bg);

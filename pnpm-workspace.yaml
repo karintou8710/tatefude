@@ -1,6 +1,15 @@
 # packages/ が公開するもの、demo はそれを workspace 越しに読む利用側。
 # デモが `tatefude` / `tatefude-react` という名前で import することで、
 # 公開 API だけで組めているかが自然に検査される (相対パスで src の奥に入れなくなる)。
+#
+# experiments/ はローカルで試すだけのもの。公開物にもデモのビルドにも入らない。
 packages:
   - packages/*
   - demo
+  - experiments/*
+
+# minitype は better-sqlite3 (ネイティブ)、tsx は esbuild を抱えていて、
+# どちらもインストール時のビルドが要る
+onlyBuiltDependencies:
+  - better-sqlite3
+  - esbuild

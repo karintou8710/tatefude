@@ -8,7 +8,7 @@ import { caretRectFor } from "./dom-point";
 import type { EditorView } from "./view";
 
 /** 幅 0 / 高さ 0 の軸に与える太さ */
-const THICKNESS = 1.8;
+const THICKNESS = 1.2;
 
 export class CaretLayer {
   private readonly layer: HTMLElement;

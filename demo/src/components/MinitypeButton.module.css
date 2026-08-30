@@ -1,0 +1,33 @@
+/* ツールバーの右端に置く実験用のボタン。書き出しはコマンドではないので Toolbar には入れない */
+.button {
+  margin-left: auto;
+  padding: 4px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  background: var(--pane-bg);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* サーバーが立っていないときのため、失敗はその場に出す */
+.error {
+  overflow: hidden;
+  max-width: 40ch;
+  color: #b04040;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 自分でタブを開けなかったときの逃げ道 */
+.link {
+  color: inherit;
+  font-size: 13px;
+}

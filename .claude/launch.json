@@ -21,6 +21,12 @@
         "--port=5181"
       ],
       "port": 5181
+    },
+    {
+      "name": "minitype",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev:minitype"],
+      "port": 8787
     }
   ]
 }
