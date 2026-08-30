@@ -45,7 +45,9 @@ export function EditorPage({ editor: spec }: { editor: Editor }) {
       <div className={styles.column}>
         <div ref={toolbarRef} className={styles.toolbarBar}>
           <Toolbar editor={editor} items={spec.toolbar ?? []} />
-          {spec.print && <MinitypeButton doc={doc} print={spec.print} />}
+          {/* 実験用の書き出しは**ローカルだけ**。公開するビルドには入れない
+              (experiments/minitype のサーバーが要るし、あちらは再配布できない) */}
+          {spec.print && import.meta.env.DEV && <MinitypeButton doc={doc} print={spec.print} />}
         </div>
         {/* 選択したときだけ浮く。ブロックの型はキャレットだけで押せるので外す */}
         <BubbleMenu editor={editor} className={styles.bubble}>
