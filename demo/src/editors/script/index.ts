@@ -18,6 +18,20 @@ export const script: Editor = {
   className: styles.script,
   config: [scriptSchema(), history()],
   toolbar: scriptToolbar,
+  // シナリオの組み。行頭に帯 3 字と人物名 8 字を取るので、発話に残るのは 31 字。
+  // 字数・行数・行送りは画面の実測に合わせてあるので、プレビューと編集画面で組みが揃う
+  print: {
+    chars: 42,
+    lines: 31,
+    charAdvance: 12.1,
+    lineAdvance: 24.2,
+    // 縦書きの横長の紙。width が行の積み方向 (= 行数)、height が行の長さ (= 字数)
+    sheet: {
+      width: 297,
+      height: 210,
+      margin: { top: 15.35, bottom: 15.35, side: 16.17 },
+    },
+  },
   doc: (schema) =>
     schema.doc([
       SceneHeading.create([text("教室")]),

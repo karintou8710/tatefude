@@ -6,6 +6,7 @@
   "packageManager": "pnpm@10.23.0",
   "scripts": {
     "dev": "pnpm --filter @tatefude/demo dev",
+    "dev:minitype": "pnpm --filter @tatefude/experiment-minitype dev",
     "build": "pnpm --filter tatefude --filter tatefude-react build",
     "typecheck": "pnpm -r typecheck",
     "lint": "biome check .",

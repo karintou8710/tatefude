@@ -42,6 +42,19 @@ export const novel: Editor = {
   className: styles.novel,
   config: [novelSchema, history()],
   toolbar: [rubyItem, tcyItem],
+  // 文庫の組み。判型・余白・送り・字数・行数を全部与える (grid.ts を参照)
+  print: {
+    chars: 41,
+    lines: 16,
+    charAdvance: 8.15,
+    lineAdvance: 13.95,
+    sheet: {
+      width: 105,
+      height: 148,
+      // 地はノンブルが入るぶん天より広い
+      margin: { top: 14, bottom: 16, side: 13 },
+    },
+  },
   doc: (schema) =>
     schema.doc([
       p(text("　"), ruby("硝子", "ガラス"), text("の向こうで、雪が斜めに降っていた。")),
