@@ -4,28 +4,14 @@
     {
       "name": "demo",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev"],
+      "runtimeArgs": ["dev:frontend"],
       "port": 5180,
       "autoPort": true
     },
     {
-      "name": "demo-pages",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "--filter",
-        "@tatefude/demo",
-        "exec",
-        "vite",
-        "preview",
-        "--base=/tatefude/",
-        "--port=5181"
-      ],
-      "port": 5181
-    },
-    {
       "name": "minitype",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev:minitype"],
+      "runtimeArgs": ["dev:server"],
       "port": 8787
     }
   ]

@@ -9,6 +9,9 @@ import { MinitypeButton } from "./MinitypeButton";
 import { usePageCount, usePageScroll } from "./pagination";
 import { Toolbar } from "./Toolbar";
 
+/** `/api/pdf` がある配り先でだけ。false に畳まれると MinitypeButton ごと落ちる */
+const hasMinitype = import.meta.env.DEV || import.meta.env.VITE_MINITYPE === "1";
+
 /** どのページも中身はこれ。違うのは渡すエディタだけ */
 export function EditorPage({ editor: spec }: { editor: Editor }) {
   // ポインタで選んだ更新かどうか。ページ送りの抑止に使う
@@ -45,9 +48,7 @@ export function EditorPage({ editor: spec }: { editor: Editor }) {
       <div className={styles.column}>
         <div ref={toolbarRef} className={styles.toolbarBar}>
           <Toolbar editor={editor} items={spec.toolbar ?? []} />
-          {/* 実験用の書き出しは**ローカルだけ**。公開するビルドには入れない
-              (experiments/minitype のサーバーが要るし、あちらは再配布できない) */}
-          {spec.print && import.meta.env.DEV && <MinitypeButton doc={doc} print={spec.print} />}
+          {spec.print && hasMinitype && <MinitypeButton doc={doc} print={spec.print} />}
         </div>
         {/* 選択したときだけ浮く。ブロックの型はキャレットだけで押せるので外す */}
         <BubbleMenu editor={editor} className={styles.bubble}>

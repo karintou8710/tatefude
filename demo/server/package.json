@@ -1,11 +1,11 @@
 {
-  "name": "@tatefude/experiment-minitype",
+  "name": "tatefude-demo-server",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "smoke": "tsx src/smoke.ts",
+    "dev": "node --watch --experimental-strip-types src/server.ts",
+    "smoke": "node --experimental-strip-types src/smoke.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -15,7 +15,6 @@
   },
   "devDependencies": {
     "@types/node": "^24.13.0",
-    "tsx": "^4.20.0",
     "typescript": "^7.0.2"
   }
 }

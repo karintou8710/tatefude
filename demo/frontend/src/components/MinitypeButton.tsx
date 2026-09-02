@@ -4,10 +4,7 @@ import type { PrintSpec } from "../editors/types";
 import styles from "./MinitypeButton.module.css";
 
 /**
- * 同じ doc を minitype (組版エンジン) で組んで PDF にする。**ローカルの実験用**で、
- * experiments/minitype のサーバー (`pnpm dev:minitype`) が立っていないと失敗する。
- *
- * 変換はサーバーが持つ。デモは doc の JSON と組みの数字を渡すだけなので、
+ * 同じ doc を minitype で組んで PDF にする。変換はサーバー (demo/server) が持つので、
  * ライブラリ本体はクライアントのバンドルに入らない (PolyForm Strict は再配布を許さない)。
  */
 export function MinitypeButton({ doc, print }: { doc: Plot; print: PrintSpec }) {

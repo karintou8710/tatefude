@@ -5,7 +5,7 @@
 A rich-text editing library for building **a WYSIWYG editor for vertical Japanese text, with ruby (furigana), emphasis dots (bōten) and tate-chu-yoko**.  
 It is built on the EditContext API instead of contenteditable.
 
-- Demo: <https://karintou8710.github.io/tatefude/>
+- Demo: <https://demo.tatefude.com>
 
 Chromium 121+ only.  
 Safari and Firefox have no EditContext implementation.
@@ -74,9 +74,6 @@ pnpm lint
 ```
 
 The browser tests need `pnpm exec playwright install chromium` once.
-
-A pnpm workspace.  
-What ships is `packages/core` (`tatefude`, no dependencies, plain DOM) and `packages/react` (`tatefude-react`); `demo/` is **a consumer that imports them by name**.
 
 ## Not there yet
 

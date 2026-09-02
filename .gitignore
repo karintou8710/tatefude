@@ -7,5 +7,9 @@ dist
 .vitest-attachments
 __screenshots__
 
-# minitype がフォントを読むたびに書くキャッシュ (experiments/minitype)
+# minitype がフォントを読むたびに書くキャッシュ (demo/server)
 font-caches.db
+
+# wrangler が置くもの。型は生成に任せる
+.wrangler
+worker-configuration.d.ts

@@ -1,9 +1,9 @@
-// ブラウザを立てずに convert.ts を試すための最小の入力。`pnpm --filter @tatefude/experiment-minitype smoke`
+// ブラウザを立てずに convert.ts を試すための最小の入力。`pnpm --filter tatefude-demo-server smoke`
 
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { minitype } from "@minitype/minitype";
-import { buildDocument, type PrintRequest } from "./convert";
+import { buildDocument, type PrintRequest } from "./convert.ts";
 
 const entry = createRequire(import.meta.url).resolve("@minitype/minitype");
 const fontDir = fileURLToPath(new URL("../fonts/", pathToFileURL(entry)));

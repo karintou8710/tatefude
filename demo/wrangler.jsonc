@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "tatefude-demo",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-28",
+  "observability": { "enabled": true },
+  "routes": [{ "pattern": "demo.tatefude.com", "custom_domain": true }],
+  "assets": {
+    "directory": "./frontend/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "containers": [
+    {
+      "class_name": "Minitype",
+      "image": "./server/Dockerfile",
+      "image_build_context": "..",
+      "instance_type": "basic",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "MINITYPE", "class_name": "Minitype" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Minitype"] }],
+  "ratelimits": [
+    {
+      "name": "PDF_RATE_LIMIT",
+      "namespace_id": "1",
+      "simple": { "limit": 6, "period": 60 }
+    }
+  ]
+}

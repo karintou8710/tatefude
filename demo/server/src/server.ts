@@ -3,7 +3,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { serve } from "@hono/node-server";
 import { minitype } from "@minitype/minitype";
 import { Hono } from "hono";
-import { buildDocument, type PrintRequest } from "./convert";
+import { buildDocument, type PrintRequest } from "./convert.ts";
 
 const PORT = Number(process.env.PORT) || 8787;
 

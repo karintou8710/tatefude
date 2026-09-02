@@ -5,7 +5,7 @@
 **ルビ・傍点・縦中横が使える縦書きの WYSIWYG エディタ**を作るための RTE ライブラリ。  
 contenteditable ではなく EditContext API を土台にする。
 
-- デモ: <https://karintou8710.github.io/tatefude/>
+- デモ: <https://demo.tatefude.com>
 
 Chromium 121+ 専用。  
 Safari / Firefox には EditContext の実装が無い。
@@ -74,9 +74,6 @@ pnpm lint
 ```
 
 ブラウザテストの初回は `pnpm exec playwright install chromium` が要る。
-
-pnpm workspace。  
-公開するのは `packages/core` (`tatefude`、依存ゼロ・素の DOM) と `packages/react` (`tatefude-react`) で、`demo/` は**それを名前で import する利用側**。
 
 ## まだ無いもの
 

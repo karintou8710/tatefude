@@ -1,0 +1,10 @@
+node_modules
+dist
+font-caches.db
+
+.git
+.github
+.vitest-attachments
+__screenshots__
+*.log
+.DS_Store
