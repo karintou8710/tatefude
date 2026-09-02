@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "deploy": "wrangler deploy",
-    "check": "wrangler deploy --dry-run",
+    "build": "VITE_MINITYPE=1 pnpm --filter tatefude-demo-frontend build",
+    "deploy": "pnpm run build && wrangler deploy",
+    "check": "pnpm run build && wrangler deploy --dry-run",
     "typecheck": "wrangler types && tsc --noEmit"
   },
   "dependencies": {

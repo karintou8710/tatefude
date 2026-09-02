@@ -23,9 +23,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm --filter tatefude-demo-frontend build
-        env:
-          VITE_MINITYPE: "1"
+      # deploy と同じ組み立て方。VITE_MINITYPE の面倒は demo 側が見る
+      - run: pnpm --filter tatefude-demo run build
 
       - uses: cloudflare/wrangler-action@v4
         with:

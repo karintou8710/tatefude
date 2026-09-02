@@ -20,6 +20,9 @@ pnpm --filter tatefude-demo run check    # 設定と Dockerfile を検算 (Docke
 pnpm --filter tatefude-demo run deploy   # 出す
 ```
 
+**どちらも frontend を組み立ててから走る。**wrangler が配るのは `frontend/dist` の中身なので、
+組み忘れると直したはずのものが出ない。CI も同じ `run build` を呼ぶ。
+
 ## なぜ server はコンテナなのか
 
 Worker の isolate はメモリ上限が 128 MB。minitype は**初回のフォント読み込みで全グリフを
