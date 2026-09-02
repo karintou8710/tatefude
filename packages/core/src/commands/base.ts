@@ -48,7 +48,9 @@ export const selectAll: Command = (state) => {
     Selection.atStart(doc).anchor,
     Selection.atEnd(doc).head,
   );
-  return { selection, userEvent: "select.all" };
+  // **送らない。**head は文書の末尾なので、既定 (userEvent があれば送る) のままだと
+  // 選んだだけで一番下へ飛ぶ。全部選ぶ操作で読んでいる場所は動かさない
+  return { selection, scrollIntoView: false, userEvent: "select.all" };
 };
 
 /**

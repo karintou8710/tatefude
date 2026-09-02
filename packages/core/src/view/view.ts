@@ -91,7 +91,7 @@ export class EditorView {
     // 送るかはトランザクションが決める (state/transaction.ts の scrollIntoView)。
     // 描き直しのたびに送ると、触っていない側のスクロール位置まで奪ってしまう。
     // updateState を直に呼ぶ経路には tr が無いので、そのときは送らない
-    if (tr?.scrollIntoView) scrollCaretIntoView(this);
+    if (tr?.scrollIntoView) scrollCaretIntoView(this, tr.changes);
 
     const listeners = state.facet(updateListener);
     if (!listeners.length) return;

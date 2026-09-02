@@ -1,3 +1,4 @@
+import type { ChangeSet } from "../doc";
 import { caretRectFor } from "./dom-point";
 import type { EditorView } from "./view";
 
@@ -8,13 +9,25 @@ const MARGIN = 8;
  * ブラウザ任せの自動スクロールは効かない。選択を DOM に書くだけでは起きず、focus でも
  * `preventScroll: true` で止めてあるため。
  */
-export function scrollCaretIntoView(view: EditorView): void {
+export function scrollCaretIntoView(view: EditorView, changes?: ChangeSet): void {
   // 触っていないときに動かすと、読んでいる場所を奪う
   if (!view.dom.contains(document.activeElement)) return;
-  const head = view.state.selection.head;
-  const block = view.textblockAt(head);
+  // **doc が変わったら変わり始めた位置を見せる。**undo は編集前の選択を戻すので、
+  // head を狙うと全選択を戻したときに末尾へ飛ぶ。打っている間は変更位置 = キャレット位置
+  const pos = changedFrom(changes) ?? view.state.selection.head;
+  const block = view.textblockAt(pos);
   if (!block) return;
-  scrollRectIntoView(block.dom, caretRectFor(block, head));
+  scrollRectIntoView(block.dom, caretRectFor(block, pos));
+}
+
+/** いちばん手前の変更の頭 (変更後の座標)。変更が無ければ null */
+function changedFrom(changes: ChangeSet | undefined): number | null {
+  if (!changes || changes.empty) return null;
+  let first: number | null = null;
+  changes.iterChanges((_fromA, _toA, fromB) => {
+    first ??= fromB;
+  });
+  return first;
 }
 
 /** 祖先の枠を内側から順に。動いたぶんだけ矩形をずらすので、測り直さずに済む */
