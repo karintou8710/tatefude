@@ -24,6 +24,25 @@
   background: var(--bg);
 }
 
+/* コマンドではないボタンはツールバーと分けて右端へ寄せる */
+.tools {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.reset {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--pane-bg);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .pane {
   border: 1px solid var(--border);
   border-radius: 6px;

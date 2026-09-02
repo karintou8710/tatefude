@@ -1,9 +1,10 @@
 import type React from "react";
-import { useRef } from "react";
-import { updateListener } from "tatefude";
+import { useEffect, useRef } from "react";
+import { type Plot, type Schema, updateListener } from "tatefude";
 import { BubbleMenu, EditorContent, useEditor, useEditorState } from "tatefude-react";
 import type { Editor } from "../editors";
 import { inlineItems } from "../editors/toolbar-items";
+import { load, save } from "../storage";
 import styles from "./EditorPage.module.css";
 import { MinitypeButton } from "./MinitypeButton";
 import { usePageCount, usePageScroll } from "./pagination";
@@ -12,8 +13,12 @@ import { Toolbar } from "./Toolbar";
 /** `/api/pdf` がある配り先でだけ。false に畳まれると MinitypeButton ごと落ちる */
 const hasMinitype = import.meta.env.DEV || import.meta.env.VITE_MINITYPE === "1";
 
+/** 打つたびに書かない。手が止まってから */
+const SAVE_DELAY = 400;
+
 /** どのページも中身はこれ。違うのは渡すエディタだけ */
-export function EditorPage({ editor: spec }: { editor: Editor }) {
+export function EditorPage({ editor: spec, onReset }: { editor: Editor; onReset: () => void }) {
+  const store = spec.store ?? spec.id;
   // ポインタで選んだ更新かどうか。ページ送りの抑止に使う
   const pointerSelect = useRef(false);
 
@@ -25,7 +30,8 @@ export function EditorPage({ editor: spec }: { editor: Editor }) {
           pointerSelect.current = update.tr?.isUserEvent("select.pointer") ?? false;
         }),
       ],
-      doc: spec.doc,
+      // 書いたものがあればそれ、無ければ既定
+      doc: (schema: Schema) => load(store, schema) ?? spec.doc(schema),
       onCreate(view) {
         view.focus();
       },
@@ -33,9 +39,20 @@ export function EditorPage({ editor: spec }: { editor: Editor }) {
     [spec.id],
   );
 
+  const doc = useEditorState(editor, (state) => state.doc);
+  // 開いたときの doc は書き戻さない。既定を差し替えたとき古い方が居座らないため。
+  // **回数ではなく同一性で見る** — StrictMode は effect を 2 回走らせるので、
+  // 「初回だけ飛ばす」フラグでは 2 回目に保存が走ってしまう
+  const opened = useRef<Plot | null>(null);
+  useEffect(() => {
+    opened.current ??= doc;
+    if (opened.current === doc) return;
+    const timer = setTimeout(() => save(store, doc), SAVE_DELAY);
+    return () => clearTimeout(timer);
+  }, [store, doc]);
+
   // 段組みでページに割るときだけ、紙の高さを測って決める
   const paginated = spec.layout === "paginated";
-  const doc = useEditorState(editor, (state) => state.doc);
   const pages = usePageCount(editor, paginated, doc);
 
   // ページを移ったらそのページ全体を出す。張り付いたツールバーのぶんだけ下げる
@@ -48,7 +65,12 @@ export function EditorPage({ editor: spec }: { editor: Editor }) {
       <div className={styles.column}>
         <div ref={toolbarRef} className={styles.toolbarBar}>
           <Toolbar editor={editor} items={spec.toolbar ?? []} />
-          {spec.print && hasMinitype && <MinitypeButton doc={doc} print={spec.print} />}
+          <div className={styles.tools}>
+            {spec.print && hasMinitype && <MinitypeButton doc={doc} print={spec.print} />}
+            <button type="button" className={styles.reset} onClick={onReset}>
+              リセット
+            </button>
+          </div>
         </div>
         {/* 選択したときだけ浮く。ブロックの型はキャレットだけで押せるので外す */}
         <BubbleMenu editor={editor} className={styles.bubble}>
