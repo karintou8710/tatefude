@@ -1,6 +1,10 @@
 import {
   type Block,
+  type Body,
+  type Border,
   b,
+  box,
+  command,
   type DocumentStyle,
   em,
   type Flow,
@@ -14,6 +18,7 @@ import {
   page,
   pt,
   ruby,
+  solid,
   text,
 } from "@minitype/minitype";
 
@@ -28,6 +33,8 @@ export interface NodeJson {
 /** デモの PrintSpec に doc を足しただけ。紙の数字は向こうが全部持っている */
 export interface PrintRequest {
   doc: NodeJson;
+  /** 書式。ブロックの型だけでなく、紙の飾り (台本の帯) もこれで決まる */
+  format: "novel" | "script";
   /** 1 行の字数と 1 ページの行数 */
   chars: number;
   lines: number;
@@ -48,6 +55,13 @@ const SPEAKER = 8;
 const NOMBRE_SIZE = 7;
 /** ト書きの字下げ。CSS の --action (人物名 + 2 字) と同じ */
 const ACTION = SPEAKER + 2;
+/** 台本の帯。行頭に空ける欄で、柱の番号だけがここに立つ。CSS の --band と同じ 3 字 */
+const BAND = 3;
+/** 帯の横罫と本文の間の空き (字)。CSS の --band-gap と同じ役 */
+const BAND_GAP = 0.25;
+/** 帯の横罫と柱の枠の太さ (mm) */
+const HAIRLINE = 0.3;
+const INK = "#111";
 
 const bodyStyle = {
   align: "justify",
@@ -84,8 +98,17 @@ export function buildDocument(req: PrintRequest): {
       paragraph: { ...bodyStyle, size: fontSize, lineHeight },
       h2: { ...bodyStyle, size: fontSize, lineHeight },
     },
+    // シーンの間隔。**ちょうど 1 行**でないと 1 ページの行数が減り、画面の組みとずれる
+    gaps: [
+      ["fallback", "h2", lineHeight],
+      ["fallback", "fallback", 0],
+    ],
   };
-  return { groups: [{ body: [nombre(), ...blocks(req.doc.content ?? [])] }], style };
+  const body: Body = [nombre()];
+  // 帯の罫は台本だけ。柱の番号はこの罫を底にして立つ
+  if (req.format === "script") body.push(bandRule(req, fontSize, lineHeight));
+  body.push(...blocks(req, fontSize, lineHeight));
+  return { groups: [{ body }], style };
 }
 
 /**
@@ -113,6 +136,34 @@ function nombre(): Flow {
   };
 }
 
+/**
+ * 帯の横罫。行頭から BAND 字の位置に、行の積み方向へ 1 本渡す。
+ * 本文と一緒に流すとブロックごとに切れるので、ノンブルと同じページの飾りとして置く。
+ *
+ * **エンジンは字面を行の頭に寄せ、行間はまるごと次の行との間に置く。**罫を版面のまま引くと、
+ * 行送りいっぱいに広げた柱の枠が半行ぶんはみ出すので、帯のほうを字面に合わせて寄せる。
+ */
+function bandRule(req: PrintRequest, fontSize: number, lineHeight: number): Flow {
+  return {
+    type: "flow",
+    position: "pillar",
+    inlineOffset: (BAND - BAND_GAP) * fontSize,
+    blockOffset: -(lineHeight - fontSize) / 2,
+    blocks: [
+      // 中身を持たない箱の天が罫そのもの。長さは版面の幅で決める
+      box([], {
+        blockSize: req.sheet.width - req.sheet.margin.side * 2,
+        border: { type: "logical", inlineStart: hairline() },
+      }),
+    ],
+  };
+}
+
+/** 帯の横罫と柱の枠で同じ 1 本を使う */
+function hairline(): Border {
+  return solid(HAIRLINE, hexToRgb(INK));
+}
+
 /** 数字を書き間違えたら、黙って組みが崩れるより落とす */
 function assertFits(req: PrintRequest, fontSize: number, lineHeight: number): void {
   const { width, height, margin } = req.sheet;
@@ -129,7 +180,14 @@ function assertFits(req: PrintRequest, fontSize: number, lineHeight: number): vo
   }
 }
 
-function blocks(nodes: readonly NodeJson[]): Block[] {
+/** 書式ごとにブロックの型が違う。知らない型は書式の取り違えなので、どちらも落とす */
+function blocks(req: PrintRequest, fontSize: number, lineHeight: number): Block[] {
+  return req.format === "script"
+    ? scriptBlocks(req, fontSize, lineHeight)
+    : novelBlocks(req.doc.content ?? []);
+}
+
+function novelBlocks(nodes: readonly NodeJson[]): Block[] {
   const out: Block[] = [];
   for (const node of nodes) {
     switch (node.type) {
@@ -140,21 +198,44 @@ function blocks(nodes: readonly NodeJson[]): Block[] {
         // 改ページを型で持たせてあるので、そのまま newpage に写る
         out.push(newpage(), p(oneLine(inlines(node.content))));
         break;
-      case "SceneHeading":
-        out.push(text("h2", oneLine(inlines(node.content))));
+      default:
+        throw new Error(`未対応のブロック: ${node.type}`);
+    }
+  }
+  return out;
+}
+
+/**
+ * 台本。**字下げはどれも帯の下から測る**ので、行頭からの字数は BAND + それぞれの字下げ。
+ * firstIndent は indent への足し算なので、1 行目を戻すときは負で打ち消す。
+ */
+function scriptBlocks(req: PrintRequest, fontSize: number, lineHeight: number): Block[] {
+  const nodes = req.doc.content ?? [];
+  const out: Block[] = [];
+  let scene = 0;
+  for (const node of nodes) {
+    switch (node.type) {
+      case "SceneHeading": {
+        scene += 1;
+        const line = sceneLine(scene, node.content, req.chars, fontSize, lineHeight);
+        out.push({
+          // 1 行目だけ行頭まで戻して番号の箱を置く。場所の名前は罫の下から
+          ...text("h2", oneLine([line]), { indent: em(BAND), firstIndent: em(-BAND) }),
+          // 番号は帯に自分で置くので、見出しの通し番号は要らない
+          unnumbered: true,
+        });
         break;
+      }
       case "Action":
-        out.push(
-          p(oneLine(inlines(node.content)), { indent: em(ACTION), firstIndent: em(ACTION) }),
-        );
+        out.push(p(oneLine(inlines(node.content)), { indent: em(BAND + ACTION) }));
         break;
       case "Dialogue":
         // 閉じ括弧は CSS の生成内容だったので、ここでは文字で足す。
         // 折り返しは人物名の枠の下にぶら下げる (CSS の padding + 負の text-indent と同じ)
         out.push(
           p(oneLine([...inlines(node.content), "」"]), {
-            indent: em(SPEAKER),
-            firstIndent: em(0),
+            indent: em(BAND + SPEAKER),
+            firstIndent: em(-SPEAKER),
           }),
         );
         break;
@@ -163,6 +244,48 @@ function blocks(nodes: readonly NodeJson[]): Block[] {
     }
   }
   return out;
+}
+
+/**
+ * 柱の 1 行。番号を帯に立て、行の左右に縦罫を**行の端まで**通す。底は引かない —
+ * 帯の横罫が番号の箱の底になり、行末側は版面の縁で切れる (画面の柱と同じ)。
+ */
+function sceneLine(
+  index: number,
+  content: readonly NodeJson[] = [],
+  chars: number,
+  fontSize: number,
+  lineHeight: number,
+): InlineOrExtender {
+  const leading = lineHeight - fontSize;
+  // 場所の名前は行末まで場所を取る枠に入れる。**行の長さいっぱいまで取らないと罫が途中で止まる**。
+  // 枠なので折り返しは無く、行より長い柱ははみ出す (診断に出る)
+  const body = (chars - BAND) * fontSize;
+  return command(
+    [
+      hbox(em(BAND - BAND_GAP), [String(index)], { align: "center" }),
+      // 罫と本文の間の空き
+      hbox(em(BAND_GAP), []),
+      hbox(body, inlines(content), { align: "left" }),
+    ],
+    {
+      style: {
+        border: {
+          type: "logical",
+          inlineStart: hairline(),
+          blockStart: hairline(),
+          blockEnd: hairline(),
+        },
+        // **枠の幅は最後のインラインの大きさから広がる。**行末まで取った hbox がそれなので、
+        // その幅を打ち消して 1 行に戻す。前の padding は枠を後ろへも押すので半行間だけ戻す
+        padding: {
+          type: "logical",
+          blockStart: -leading / 2,
+          blockEnd: lineHeight - body + leading / 2,
+        },
+      },
+    },
+  );
 }
 
 function inlines(nodes: readonly NodeJson[] = []): InlineOrExtender[] {

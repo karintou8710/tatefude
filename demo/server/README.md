@@ -1,7 +1,7 @@
 # demo/server
 
 デモの doc を **minitype (組版エンジン) で組んで PDF にする**サーバー。
-「minitype (実験)」ボタンがここを叩く。
+「PDF 出力」ボタンがここを叩く。
 
 ```bash
 pnpm dev:server   # これだけ。http://localhost:8787
@@ -11,6 +11,19 @@ pnpm dev          # frontend も一緒に。あちらの /api がここへ proxy
 ブラウザは `doc.toJSON()` と組みの数字を投げるだけで、`Group[]` への変換は `convert.ts` が持つ。
 `server.ts` は dev でもコンテナでも同じで、違うのは前に立つものだけ —
 dev は vite の proxy、Cloudflare は Worker が `/api/pdf` を `/pdf` に書き換えて渡す。
+
+## 書式
+
+`format` で分かれる。ブロックの型が違うだけでなく、**台本は紙に飾りが要る**。
+
+- **小説** — 段落と改ページだけ。飾りはノンブル
+- **台本** — 行頭に帯を 3 字空け、その下端に横罫を 1 本渡す。柱の番号だけが帯に立ち、
+  罫がその箱の底になる。字下げ (柱・ト書き・セリフ) はどれも帯の下から測る。
+  シーンの間は **ちょうど 1 行**空ける (半端な空きだと 1 ページの行数が画面とずれる)
+
+罫は行ではなくページのものなので、本文には流さずノンブルと同じ `flow` で置く。
+
+`pnpm --filter tatefude-demo-server smoke` が両方を組んで `/tmp/minitype-smoke-*.pdf` に出す。
 
 ## ライセンス
 

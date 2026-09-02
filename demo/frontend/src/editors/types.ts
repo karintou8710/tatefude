@@ -8,6 +8,8 @@ import type { Grid, Sheet } from "../export/grid";
  */
 export interface PrintSpec extends Grid {
   sheet: Sheet;
+  /** 組版側の書式。ブロックの型だけでなく、紙の飾り (台本の帯) もこれで決まる */
+  format: "novel" | "script";
 }
 
 /**
@@ -16,6 +18,11 @@ export interface PrintSpec extends Grid {
  */
 export interface Editor {
   id: string;
+  /**
+   * 保存の単位。**同じ中身を別の組み方で見せるものは共有する** —
+   * 省略すると id ごと。scroll 版は spread で継ぐので、書くのは元の 1 箇所だけ
+   */
+  store?: string;
   name: string;
   description: string;
   /**

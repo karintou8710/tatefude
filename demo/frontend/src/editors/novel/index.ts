@@ -36,6 +36,7 @@ function p(...content: Node[]): Plot {
 
 export const novel: Editor = {
   id: "novel",
+  store: "novel",
   name: "縦書き・小説",
   description: "段落の字下げとルビ。Shift-Enter で改ページ",
   layout: "paginated",
@@ -44,6 +45,7 @@ export const novel: Editor = {
   toolbar: [rubyItem, tcyItem],
   // 文庫の組み。判型・余白・送り・字数・行数を全部与える (grid.ts を参照)
   print: {
+    format: "novel",
     chars: 41,
     lines: 16,
     charAdvance: 8.15,

@@ -5,25 +5,32 @@
    - padding-inline-start = 行頭 (上) からの字下げ
    番号は counter で出すので DOM のテキストには入らない。 */
 .script {
-  --band: 52px;
+  /* 字数と行数は**紙の組みと同じ値**を EditorPage が流し込む (--chars / --lines)。
+     画面が合わせるのはその 2 つだけで、実寸は持たない (小説と同じ) */
+  --font: 16px;
+  /* 行送りは紙と同じ 2.0。**注記の 0.5em を行間だけで飲み込める下限**なので、
+     小説のように段の幅で吸収するぶん (+0.9 行) を足さなくてよい */
+  --line-advance: calc(var(--font) * 2);
+  /* 行頭の帯。罫まで 2.75 字 + 本文まで 0.25 字で、合わせて紙と同じ 3 字 */
+  --band: calc(var(--font) * 2.75);
   /* 横罫と本文の間。横罫は content box 基準で引くので、ここを 0 にすると罫に文字が付く */
-  --band-gap: 6px;
+  --band-gap: calc(var(--font) * 0.25);
   /* 本文が始まる位置 (行頭からの字下げ)。字下げする型はここに足す */
   --text-start: calc(var(--band) + var(--band-gap));
   /* 人物名の枠。セリフの開始位置をここで決める */
   --speaker: 8em;
   /* ト書きはセリフ本文より深く入れる。主はセリフなので、ト書きが一段引っ込む */
   --action: calc(var(--speaker) + 2em);
-  /* 横長の紙。縦書きなので高さが行の長さ、幅が行の積み方向 (= 1 ページの行数)。
-     段組みが行の切れ目で割ってくれるので、行送りのグリッドに乗せる必要はない */
-  /* 行送り。1 ページに何行入るかはこれと紙の幅で決まる */
-  --line-advance: 32px;
-  --sheet-height: min(72vh, 680px);
-  --sheet-width: calc(var(--sheet-height) * 1.6);
-  /* 紙の左右の余白 (行の積み方向) */
-  --paper-margin: 40px;
-  /* 本文の領域 = 紙から上下の余白を引いたぶん。段組みの 1 段がこれになる */
-  --page-length: calc(var(--sheet-height) - var(--page-pad) * 2);
+  /* 天地 (行頭 / 行末側) と小口 (行の積み方向) の余白。紙の余白と同じ字数で取る。
+     地はノンブルが入るので天より広く */
+  --sheet-pad: calc(var(--font) * 3);
+  --sheet-pad-foot: calc(var(--font) * 3.5);
+  --paper-margin: calc(var(--font) * 4);
+
+  /* 縦書きでは inline 軸が行の長さ。全角 1 文字 = 1em なので、字数がそのまま長さ */
+  --page-length: calc(var(--font) * var(--chars));
+  /* block 軸は行の積み方向。行数ぶんがちょうど入る幅 */
+  --sheet-width: calc(var(--line-advance) * var(--lines) + var(--paper-margin) * 2);
 
   justify-self: center;
   width: var(--sheet-width);
@@ -33,10 +40,10 @@
   counter-reset: scene;
   box-sizing: border-box;
   min-height: 0;
-  /* 左右は紙の左右の余白 (縦書きでは行の積み方向)。柱の縦罫が紙の縁に付かないよう広めに */
+  /* 左右は紙の左右の余白 (縦書きでは行の積み方向) */
   padding: var(--pad-head) var(--paper-margin) var(--pad-foot);
   font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
-  font-size: 16px;
+  font-size: var(--font);
   line-height: var(--line-advance);
   color: #223;
 
@@ -57,18 +64,19 @@
   padding-inline-start: var(--text-start);
 }
 
-/* 柱。左右の縦罫と上端で、横罫との間に番号の箱ができる */
+/* 柱。罫は**どちらも流れの外に置く** — 柱自身に border を引くと行が 2px 太り、
+   1 ページの行数がひとつ減って紙の組みとずれる */
 .script :global(.script-scene-heading) {
   position: relative;
   font-size: inherit;
   font-weight: normal;
-  border-block: 1px solid #111;
-  border-inline-start: 1px solid #111;
   counter-increment: scene;
 }
 
-/* 番号は横組みなので、論理プロパティは使わない。
-   writing-mode を変えると inset-inline-start がこの要素自身の軸で解決され、上ではなく左になる */
+/* 番号の箱。横罫との間に立つので、**天だけ引く** — 左右は下の縦罫が兼ね、
+   底は横罫がそのまま箱の底になる。
+   番号は横組みなので、論理プロパティは使わない。writing-mode を変えると
+   inset-inline-start がこの要素自身の軸で解決され、上ではなく左になる */
 .script :global(.script-scene-heading)::before {
   content: counter(scene);
   position: absolute;
@@ -79,14 +87,25 @@
   display: grid;
   place-items: center;
   writing-mode: horizontal-tb;
-  font-size: 14px;
+  font-size: calc(var(--font) * 0.875);
+  border-top: 1px solid #111;
+}
+
+/* 左右の縦罫。番号の箱から**行の端まで**通す。
+   inset: 0 で柱の行いっぱいに広がり、border-block が縦書きでは左右になる */
+.script :global(.script-scene-heading)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-block: 1px solid #111;
 }
 
 /* シーンの間隔。柱がシーンの始まりなので、柱自身に付ける。先頭の柱は紙の端なので除く。
    **block 軸 (縦書きでは右→左) に付ける**。inline 軸に付けると柱の開始位置が下へずれ、
-   番号の高さがシーンごとにばらける */
+   番号の高さがシーンごとにばらける。
+   ちょうど 1 行にするのは、半端だと 1 ページの行数が減って紙の組みとずれるため */
 .script :global(.script-scene-heading):not(:first-child) {
-  margin-block-start: 14px;
+  margin-block-start: var(--line-advance);
 }
 
 /* ト書きは全体を字下げ。padding-inline-start は縦書きでは上なので、
