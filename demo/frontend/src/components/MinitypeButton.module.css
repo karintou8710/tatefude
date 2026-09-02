@@ -1,6 +1,23 @@
-/* ツールバーの右端に置く実験用のボタン。書き出しはコマンドではないので Toolbar には入れない */
+/* 何で組んでいるかの断りはボタンの下へ。押すところと読むところを縦で分ける */
+.export {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.engine {
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.75;
+}
+
+.engine a {
+  color: inherit;
+}
+
+/* 書き出しはコマンドではないので Toolbar には入れない */
 .button {
-  margin-left: auto;
   padding: 4px 10px;
   border: 1px dashed var(--border);
   border-radius: 4px;
