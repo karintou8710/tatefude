@@ -19,7 +19,7 @@ COPY demo/server/tsconfig.json demo/server/
 COPY demo/server/src demo/server/src
 
 WORKDIR /repo/demo/server
-RUN pnpm smoke && rm -f /tmp/minitype-smoke.pdf
+RUN pnpm smoke && rm -f /tmp/minitype-smoke-*.pdf
 
 FROM --platform=linux/amd64 node:22-bookworm-slim
 
