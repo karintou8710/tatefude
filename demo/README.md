@@ -16,7 +16,8 @@ pnpm dev            # 両方。frontend :5180 / server :8787 (vite が /api を 
 pnpm dev:frontend   # frontend だけ
 pnpm dev:server     # server だけ
 
-pnpm --filter tatefude-demo check   # wrangler の設定と Dockerfile を検算する (Docker が要る)
+pnpm --filter tatefude-demo run check    # 設定と Dockerfile を検算 (Docker が要る)
+pnpm --filter tatefude-demo run deploy   # 出す
 ```
 
 ## なぜ server はコンテナなのか

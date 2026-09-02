@@ -10,8 +10,6 @@ export class Minitype extends Container<Env> {
   sleepAfter = "1m";
   /** 組版は外へ出ない */
   enableInternet = false;
-  /** Hono の GET / が文字を返す */
-  pingEndpoint = "/";
 }
 
 export default {
